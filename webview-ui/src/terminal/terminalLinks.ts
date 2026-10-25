@@ -4,6 +4,7 @@ import {
   TERMINAL_URL_PATTERN,
 } from '../constants.js';
 import { hardWrapIndent } from './hardWrap.js';
+import type { CellPos } from './selectionMath.js';
 
 /**
  * Open a link the terminal pane was clicked or tapped on -- the ONE activation
@@ -48,12 +49,6 @@ export interface TerminalBufferLike {
     | undefined;
 }
 
-/** A buffer cell (0-based). */
-export interface CellPos {
-  row: number;
-  col: number;
-}
-
 /** A plain URL on screen: its text and the cells it starts and ends on. */
 export interface TerminalUrl {
   url: string;
@@ -62,7 +57,12 @@ export interface TerminalUrl {
 }
 
 /** One visual row as text, with the cell each character came from. */
-function rowCells(buffer: TerminalBufferLike, y: number): { text: string; cols: number[] } {
+interface RowText {
+  text: string;
+  cols: number[];
+}
+
+function rowCells(buffer: TerminalBufferLike, y: number): RowText {
   const line = buffer.getLine(y);
   let text = '';
   const cols: number[] = [];
@@ -78,12 +78,18 @@ function rowCells(buffer: TerminalBufferLike, y: number): { text: string; cols: 
 
 /** Whether row `y + 1` carries on row `y`: xterm's own wrap, or Claude Code
  *  breaking a long token (hardWrap.ts). Returns the columns of `y + 1` to
- *  skip (its indent), or null. */
-function continuesFrom(buffer: TerminalBufferLike, y: number, cols: number): number | null {
+ *  skip (its indent), or null. `row` reads a row's text (memoized by the
+ *  caller: the walk asks for each row several times). */
+function continuesFrom(
+  buffer: TerminalBufferLike,
+  row: (y: number) => RowText,
+  y: number,
+  cols: number,
+): number | null {
   const next = buffer.getLine(y + 1);
   if (!next) return null;
   if (next.isWrapped) return 0;
-  return hardWrapIndent(rowCells(buffer, y).text, rowCells(buffer, y + 1).text, cols);
+  return hardWrapIndent(row(y).text, row(y + 1).text, cols);
 }
 
 /**
@@ -95,17 +101,26 @@ function logicalLine(
   row: number,
   cols: number,
 ): { text: string; cells: CellPos[] } {
+  const rows = new Map<number, RowText>();
+  const rowAt = (y: number): RowText => {
+    let r = rows.get(y);
+    if (!r) {
+      r = rowCells(buffer, y);
+      rows.set(y, r);
+    }
+    return r;
+  };
   let first = row;
-  while (first > 0 && continuesFrom(buffer, first - 1, cols) !== null) first--;
+  while (first > 0 && continuesFrom(buffer, rowAt, first - 1, cols) !== null) first--;
   let text = '';
   const cells: CellPos[] = [];
   for (let y = first, skip = 0; ;) {
-    const r = rowCells(buffer, y);
+    const r = rowAt(y);
     for (let i = skip; i < r.text.length; i++) {
       text += r.text[i];
       cells.push({ row: y, col: r.cols[i] });
     }
-    const next = continuesFrom(buffer, y, cols);
+    const next = continuesFrom(buffer, rowAt, y, cols);
     if (next === null) break;
     // xterm's own wrap keeps the row's trailing spaces as text.
     if (next === 0) {
@@ -121,14 +136,19 @@ function logicalLine(
   return { text, cells };
 }
 
+/** Every plain URL in `text`, as indexes into it (first and last character). */
+function matchUrls(text: string): Array<{ url: string; from: number; to: number }> {
+  return [...text.matchAll(new RegExp(TERMINAL_URL_PATTERN.source, 'g'))].map((m) => ({
+    url: m[0],
+    from: m.index,
+    to: m.index + m[0].length - 1,
+  }));
+}
+
 /** Every plain URL on the line row `row` belongs to (wrapped either way). */
 export function urlsOnLine(buffer: TerminalBufferLike, row: number, cols: number): TerminalUrl[] {
   const { text, cells } = logicalLine(buffer, row, cols);
-  return [...text.matchAll(new RegExp(TERMINAL_URL_PATTERN.source, 'g'))].map((m) => ({
-    url: m[0],
-    start: cells[m.index],
-    end: cells[m.index + m[0].length - 1],
-  }));
+  return matchUrls(text).map(({ url, from, to }) => ({ url, start: cells[from], end: cells[to] }));
 }
 
 /**
@@ -152,8 +172,5 @@ export function urlAtCell(
   // The tap counts only on a character of the line (not a continuation's indent).
   const tap = cells.findIndex((c) => c.row === row && c.col === col);
   if (tap < 0) return null;
-  for (const match of text.matchAll(new RegExp(TERMINAL_URL_PATTERN.source, 'g'))) {
-    if (tap >= match.index && tap < match.index + match[0].length) return match[0];
-  }
-  return null;
+  return matchUrls(text).find(({ from, to }) => tap >= from && tap <= to)?.url ?? null;
 }

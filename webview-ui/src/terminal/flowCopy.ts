@@ -35,6 +35,9 @@ export function terminalCopyText(
 }
 
 /**
+ * Join the selection's rows where one carries on the last: a broken token
+ * always (no space), a word-wrapped line when `prose` (one space).
+ *
  * Claude Code's TUI hard-wraps transcript prose at the terminal width with a
  * two-space continuation indent, so a multi-line copy comes out as ragged
  * visual rows instead of flowing text:
@@ -42,19 +45,13 @@ export function terminalCopyText(
  *     He'd stand in front of it for exactly as long
  *       as his wanderLimit allowed, then turn around
  *
- * Join those wraps back together — but only where the break carries that soft
+ * `prose` joins those wraps back together — but only where the break carries that soft
  * wrap's signature: a continuation-shaped line (see CONTINUATION) whose first
  * word would NOT have fit on the row above. A wrap breaks a row precisely
  * because the next word overflowed it; a deliberate newline after a short row
  * (`foo:\n  bar: 1` in YAML, an indented JSON key, code) has room to spare and
  * keeps its break.
  */
-export function flowTerminalCopy(text: string, cols: number, firstLineCol = 0): string {
-  return joinRows(text, cols, firstLineCol, true);
-}
-
-/** Join the selection's rows where one carries on the last: a broken token
- *  always (no space), a word-wrapped line when `prose` (one space). */
 function joinRows(text: string, cols: number, firstLineCol: number, prose: boolean): string {
   const sep = text.includes('\r\n') ? '\r\n' : '\n';
   const rows = text.split(sep).map((row) => (prose ? row.trimEnd() : row));

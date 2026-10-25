@@ -22,8 +22,8 @@ interface TerminalPaneStackProps {
    *  pane that mounts gets its screen and scrollback back from the server's
    *  replay anyway. */
   keepHidden: boolean;
-  /** Input into whichever pane is showing — how the mobile key bar types and
-   *  pastes. Resolved at call time, so it follows tab switches. */
+  /** Input into whichever pane is showing — how the mobile key bar types.
+   *  Resolved at call time, so it follows tab switches. */
   inputRef?: Ref<TerminalInputHandle>;
 }
 
@@ -51,9 +51,6 @@ export function TerminalPaneStack({
     () => ({
       send: (data) => {
         if (shownRef.current !== null) inputs.current.get(shownRef.current)?.send(data);
-      },
-      paste: (data) => {
-        if (shownRef.current !== null) inputs.current.get(shownRef.current)?.paste(data);
       },
     }),
     [],

@@ -32,8 +32,7 @@ interface TerminalPaneProps {
    *  there, tapping the terminal itself is what summons the keyboard. */
   autoFocus?: boolean;
   /** Hands the caller this pane's input handle (null on teardown) — how the
-   *  mobile key bar injects keys the software keyboard doesn't have and
-   *  pastes clipboard text. */
+   *  mobile key bar injects keys the software keyboard doesn't have. */
   onRegisterInput?: (agentId: number, handle: TerminalInputHandle | null) => void;
 }
 
@@ -41,10 +40,6 @@ interface TerminalPaneProps {
 export interface TerminalInputHandle {
   /** Write raw bytes (key sequences) straight to the PTY. */
   send: (data: string) => void;
-  /** Paste text through xterm, which wraps it in bracketed-paste markers when
-   *  the running app has turned that mode on — Claude Code has, and without
-   *  the markers a multiline paste would submit at its first newline. */
-  paste: (data: string) => void;
 }
 
 /**
@@ -132,7 +127,6 @@ export function TerminalPane({
     });
     registerInputRef.current?.(agentId, {
       send: (data) => connection.write(data),
-      paste: (data) => term.paste(data),
     });
 
     // Touch: scroll + flick, tap to focus / open a URL, long-press selection
@@ -144,7 +138,10 @@ export function TerminalPane({
       // Read inside the pill's click, which keeps the user activation iOS
       // requires; Safari may still show its paste callout the first time. A
       // no-op when that is dismissed (or the plain-http prompt) or the
-      // clipboard is empty.
+      // clipboard is empty. Pasted through xterm, not written to the PTY:
+      // xterm wraps it in bracketed-paste markers when the running app has
+      // turned that mode on — Claude Code has, and without the markers a
+      // multiline paste would submit at its first newline.
       onPaste: () => {
         void readClipboardText(MOBILE_PASTE_PROMPT).then((text) => {
           if (text) term.paste(text);

@@ -11,12 +11,11 @@ export type TrackpadArrow = 'up' | 'down' | 'left' | 'right';
 export interface TrackpadState {
   /** The locked axis; null until the finger has covered a full step. */
   axis: 'x' | 'y' | null;
-  /** Steps already sent along each axis (signed: right / down positive). */
-  sentX: number;
-  sentY: number;
+  /** Steps already sent along the locked axis (signed: right / down positive). */
+  sent: number;
 }
 
-export const TRACKPAD_IDLE: TrackpadState = { axis: null, sentX: 0, sentY: 0 };
+export const TRACKPAD_IDLE: TrackpadState = { axis: null, sent: 0 };
 
 /** The arrows a finger now `dx`, `dy` px from where it pressed should send. */
 export function trackpadMove(
@@ -31,15 +30,11 @@ export function trackpadMove(
     axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
   }
   const keys: TrackpadArrow[] = [];
-  let { sentX, sentY } = state;
-  if (axis === 'x') {
-    const target = Math.trunc(dx / step);
-    for (; sentX < target; sentX++) keys.push('right');
-    for (; sentX > target; sentX--) keys.push('left');
-  } else {
-    const target = Math.trunc(dy / step);
-    for (; sentY < target; sentY++) keys.push('down');
-    for (; sentY > target; sentY--) keys.push('up');
-  }
-  return { state: { axis, sentX, sentY }, keys };
+  let { sent } = state;
+  const target = Math.trunc((axis === 'x' ? dx : dy) / step);
+  const [forward, back]: [TrackpadArrow, TrackpadArrow] =
+    axis === 'x' ? ['right', 'left'] : ['down', 'up'];
+  for (; sent < target; sent++) keys.push(forward);
+  for (; sent > target; sent--) keys.push(back);
+  return { state: { axis, sent }, keys };
 }
