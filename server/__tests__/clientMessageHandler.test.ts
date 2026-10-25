@@ -1012,6 +1012,28 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
     expect(broadcasts).toContainEqual({ type: 'terminalSessionOpened', agentId: id });
   });
 
+  it('launchAgent with a roster pick moves it to the front of the roster', () => {
+    const { manager } = workingPtyManager();
+
+    dispatch({ type: 'launchAgent', palette: 2 }, ctx({ runtime, ptyManager: manager }));
+
+    expect(store.size).toBe(1);
+    expect(readConfig().recentCharacters).toEqual([2]);
+    expect(broadcasts).toContainEqual(expect.objectContaining({ type: 'recentCharactersLoaded' }));
+  });
+
+  it('launchAgent records no recency when the launch fails', () => {
+    // No agent wears the pick, so it must not jump to the front of every
+    // office's roster.
+    const manager = PtySessionManager.disabled('Terminal disabled with --no-terminal.');
+
+    dispatch({ type: 'launchAgent', palette: 2 }, ctx({ runtime, ptyManager: manager }));
+
+    expect(store.size).toBe(0);
+    expect(readConfig().recentCharacters ?? []).toEqual([]);
+    expect(broadcasts.filter((m) => m.type === 'recentCharactersLoaded')).toEqual([]);
+  });
+
   it('launchAgent is ignored from an untokened client', () => {
     const { manager } = workingPtyManager();
 

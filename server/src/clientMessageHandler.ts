@@ -169,7 +169,7 @@ export function handleClientMessage(
       // drawer row and carries its Directory's path; no directoryPath falls
       // back to the server cwd (launchStandaloneAgent's own default).
       const picked = rosterPick(msg.palette, getPaletteCount());
-      launchStandaloneAgent(
+      const launched = launchStandaloneAgent(
         { store, runtime, ptyManager: ctx.ptyManager, provider: claudeProvider },
         {
           directoryPath: msg.directoryPath as string | undefined,
@@ -177,7 +177,9 @@ export function handleClientMessage(
           palette: picked,
         },
       );
-      // A roster pick moves to the front of every office's roster.
+      // A roster pick moves to the front of every office's roster, once an
+      // agent wears it: a launch that failed (no PTY, no command) records nothing.
+      if (launched === null) break;
       const recent = recordCharacterUse(picked);
       if (recent) store.broadcast(recent);
       break;
