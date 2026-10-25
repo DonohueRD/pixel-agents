@@ -96,20 +96,24 @@ export function liveServers(debug: ScriptDebug): ServerTarget[] | null {
   }
 }
 
+/** One delivery: where it goes on the server, what it carries, how it is
+ *  named in the debug log, and how long to wait. */
+export interface ServerPost {
+  path: string;
+  body: string;
+  label: string;
+  debug: ScriptDebug;
+  timeoutMs: number;
+}
+
 /**
  * POST a JSON body to one server. Best-effort: every failure path (bad
  * connection, timeout, non-2xx status) resolves quietly -- a dropped delivery
  * to one server must never affect delivery to any other server, nor the
  * script's exit code. `label` names the delivery in the debug log.
  */
-export function postToServer(
-  server: ServerTarget,
-  urlPath: string,
-  body: string,
-  label: string,
-  debug: ScriptDebug,
-  timeoutMs: number,
-): Promise<void> {
+export function postToServer(server: ServerTarget, post: ServerPost): Promise<void> {
+  const { path: urlPath, body, label, debug, timeoutMs } = post;
   debug(`POST ${label} port=${server.port}`);
   return new Promise((resolve) => {
     try {

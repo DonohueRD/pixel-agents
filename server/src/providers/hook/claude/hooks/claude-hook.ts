@@ -63,14 +63,13 @@ async function main(): Promise<void> {
   const body = JSON.stringify(data);
   await Promise.all(
     servers.map((server) =>
-      postToServer(
-        server,
-        `${HOOK_API_PREFIX}/claude`,
+      postToServer(server, {
+        path: `${HOOK_API_PREFIX}/claude`,
         body,
-        `event=${eventName} sid=${sid}`,
-        hookDebug,
-        HOOK_POST_TIMEOUT_MS,
-      ),
+        label: `event=${eventName} sid=${sid}`,
+        debug: hookDebug,
+        timeoutMs: HOOK_POST_TIMEOUT_MS,
+      }),
     ),
   );
 }

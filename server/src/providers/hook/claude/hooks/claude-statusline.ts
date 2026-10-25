@@ -95,14 +95,13 @@ async function report(payload: Record<string, unknown>): Promise<void> {
   const body = JSON.stringify(payload);
   await Promise.all(
     servers.map((server) =>
-      postToServer(
-        server,
-        `${USAGE_API_PREFIX}/claude`,
+      postToServer(server, {
+        path: `${USAGE_API_PREFIX}/claude`,
         body,
-        'usage',
-        noDebug,
-        USAGE_POST_TIMEOUT_MS,
-      ),
+        label: 'usage',
+        debug: noDebug,
+        timeoutMs: USAGE_POST_TIMEOUT_MS,
+      }),
     ),
   );
 }
