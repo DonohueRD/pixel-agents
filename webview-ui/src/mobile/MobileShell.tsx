@@ -31,7 +31,7 @@ interface MobileShellProps {
   /** Persist a dragged card order; absent in a read-only office. */
   onReorder?: (order: number[]) => void;
   /** Opens the Characters view; absent in a read-only office, which hides the
-   *  Characters button above the + card. */
+   *  roster arrow beside the + card. */
   onOpenCharacters?: () => void;
   /** The software keyboard is up (useKeyboardViewport). */
   keyboardOpen: boolean;
