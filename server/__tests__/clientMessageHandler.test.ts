@@ -1303,7 +1303,7 @@ describe('clientMessageHandler: standalone terminal control plane', () => {
       const id = [...store][0][0];
       // Labelled with the Directory's NAME, not the launch path's basename:
       // that is what the user called it, and what its Area mapping is keyed by
-      // (directoryNameForLaunch in server/src/directories.ts).
+      // (directoryAt in server/src/directories.ts).
       expect(store.get(id)?.directoryName).toBe('Side Project');
     } finally {
       fs.rmSync(target, { recursive: true, force: true });
@@ -1602,5 +1602,36 @@ describe('clientMessageHandler: card order', () => {
     expect(sent).toEqual([{ type: 'cardOrderLoaded', order: [2, 1] }]);
     expect(broadcasts).toEqual([]);
     expect(store.getAdapter()!.loadCardOrder()).toEqual([2, 1]);
+  });
+});
+
+describe('clientMessageHandler: roster recency', () => {
+  let tempHome: string;
+  let originalHome: string | undefined;
+
+  beforeEach(() => {
+    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-cmh-recent-'));
+    originalHome = process.env.HOME;
+    process.env.HOME = tempHome;
+  });
+
+  afterEach(() => {
+    process.env.HOME = originalHome;
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  });
+
+  it('sends the roster recency on connect', () => {
+    const store = new AgentStateStore();
+    store.setAdapter(new FileStateAdapter({ namespace: 'standalone' }));
+    const sent: Array<Record<string, unknown>> = [];
+
+    handleClientMessage({ type: 'webviewReady' }, (m) => sent.push(m), {
+      store,
+      cache: null,
+      privileged: true,
+    });
+
+    expect(sent).toContainEqual({ type: 'recentCharactersLoaded', recent: [] });
+    store.dispose();
   });
 });

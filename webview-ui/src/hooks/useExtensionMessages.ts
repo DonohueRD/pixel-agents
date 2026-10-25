@@ -75,6 +75,11 @@ export interface Directory {
   /** Where the entry came from. Host-contributed entries (VS Code's workspace
    *  folders, standalone's start directory) are read-only in the office. */
   source: 'user' | 'host';
+  /** Default characters for launches here (palette indices), highest priority
+   *  first. Absent = none. */
+  characters?: number[];
+  /** How a launch picks from `characters`. Absent = 'priority'. */
+  characterOrder?: 'priority' | 'random';
 }
 
 /** A refused saveDirectory, shown inline in the Directory modal. `seq` rises

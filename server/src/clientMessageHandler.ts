@@ -32,6 +32,7 @@ import type { ConsentEffects } from './providers/hook/consentExecutor.js';
 import { applyConsentChoice } from './providers/hook/consentExecutor.js';
 import { hooksConsentRequest } from './providers/hook/consentGate.js';
 import { claudeProvider, hookProviderById, hookProviders } from './providers/index.js';
+import { recentCharactersMessage, recordCharacterUse } from './recentCharacters.js';
 import { launchStandaloneAgent } from './terminal/standaloneAgentLauncher.js';
 import type { TerminalSessions } from './terminal/terminalSessions.js';
 import { applyUsageBridgeChoice, usageSnapshotMessages } from './usageLimits.js';
@@ -163,8 +164,12 @@ export function handleClientMessage(
         {
           directoryPath: msg.directoryPath as string | undefined,
           bypassPermissions: adapter?.getSetting(KEY_BYPASS_PERMISSIONS, false) ?? false,
+          palette: typeof msg.palette === 'number' ? msg.palette : undefined,
         },
       );
+      // A roster pick moves to the front of every office's roster.
+      const recent = recordCharacterUse(msg.palette);
+      if (recent) store.broadcast(recent);
       break;
     }
 
@@ -205,6 +210,13 @@ export function handleClientMessage(
         broadcast: (message) => store.broadcast(message),
         reply: send,
         store,
+        sharedRefsChanged: () => {
+          store.broadcast({
+            type: 'directoriesLoaded',
+            directories: listDirectories(shownHostDirectoriesFor(ctx)),
+          });
+          store.broadcast(recentCharactersMessage());
+        },
       });
       break;
 
@@ -215,7 +227,7 @@ export function handleClientMessage(
           { palette?: number; repeat?: number; seatId?: string }
         >;
         // The server owns an agent's look: it picks one when the agent is
-        // created (random pick, a teammate inherits its lead's).
+        // created (random pick, roster or Directory pick, a teammate inherits its lead's).
         // A seat save only fills in a look the agent doesn't have yet — a
         // reconnecting browser saves back the looks it had before, and those
         // must not overwrite the server's. Validate ranges to keep a remote
@@ -524,6 +536,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // 2. Character profiles (the cast agents are drawn from), then the assets
   //    (from server cache, loaded at startup via pngjs)
   send(characterProfilesLoadedMessage());
+  send(recentCharactersMessage());
   if (cache) {
     send({ type: 'characterSpritesLoaded', characters: cache.characters.characters });
     if (cache.pets) {

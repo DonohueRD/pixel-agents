@@ -67,6 +67,7 @@ import {
   hookProviderById,
   hookProviders,
 } from '../../server/src/providers/index.js';
+import { recentCharactersMessage, recordCharacterUse } from '../../server/src/recentCharacters.js';
 import { PixelAgentsServer } from '../../server/src/server.js';
 import { applyUsageBridgeChoice, usageSnapshotMessages } from '../../server/src/usageLimits.js';
 import {
@@ -496,9 +497,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           // the first workspace folder — exactly as it was.
           message.directoryPath as string | undefined,
           // Permission posture is a persisted per-host setting, never a
-          // per-launch field: the webview sends only where to launch.
+          // per-launch field: the webview sends only where to launch (and,
+          // picked from the roster, which character).
           this.adapter.getSetting<boolean>(GLOBAL_KEY_BYPASS_PERMISSIONS, false),
+          undefined,
+          typeof message.palette === 'number' ? message.palette : undefined,
         );
+        // A roster pick moves to the front of the roster.
+        const recent = recordCharacterUse(message.palette);
+        if (recent) this.sendOrBuffer(recent);
         // Register newly created agent(s) with hook handler
         for (const [id, agent] of this.store) {
           if (!prevAgentIds.has(id)) {
@@ -544,6 +551,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           broadcast: send,
           reply: send,
           store: this.store,
+          sharedRefsChanged: () => {
+            this.sendDirectories();
+            send(recentCharactersMessage());
+          },
         });
       } else if (message.type === 'exportFile') {
         await this.exportFile(message.filename, message.dataBase64);
@@ -875,6 +886,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
         // Character profiles (the cast agents are drawn from), before any asset or layout
         this.webview?.postMessage(characterProfilesLoadedMessage());
+        this.webview?.postMessage(recentCharactersMessage());
 
         // Load furniture assets BEFORE sending layout
         (async () => {

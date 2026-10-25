@@ -225,3 +225,7 @@ export function parseConfigFile(
   // the parsed file is ours to change: name the unnamed after it
   return profiles.map((p) => ({ ...p, name: p.name || fileName.replace(/\.json$/i, '') }));
 }
+
+/** A character's name as the rosters show it: its name, else its sheet's file name. */
+export const characterLabel = (profile: CharacterProfile | undefined, index: number): string =>
+  profile?.name || `char_${index}`;

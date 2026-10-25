@@ -15,7 +15,7 @@ import { createAgentState } from '../../server/src/agentState.js';
 import { AgentStateStore } from '../../server/src/agentStateStore.js';
 import { JSONL_POLL_INTERVAL_MS } from '../../server/src/constants.js';
 import { clearContextUsage } from '../../server/src/contextUsage.js';
-import { directoryNameForLaunch } from '../../server/src/directories.js';
+import { directoryAt } from '../../server/src/directories.js';
 import {
   ensureProjectScan,
   readNewLines,
@@ -59,6 +59,9 @@ export async function launchNewTerminal(
   directoryPath?: string,
   bypassPermissions?: boolean,
   suppressShow?: boolean,
+  /** The character picked from the roster (a palette index); absent = the
+   *  launch Directory's default characters, else a random pick. */
+  palette?: number,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   // Use home directory as fallback cwd when no workspace is open (common on Linux/macOS).
@@ -105,8 +108,9 @@ export async function launchNewTerminal(
   // workspace folder (longest path wins for nested folders), and nothing at all
   // in a single-root window, where an origin label would say what the whole
   // office already says.
-  const chosenDirectoryName =
-    directoryPath === undefined ? undefined : directoryNameForLaunch(cwd, workspaceDirectories());
+  const chosenDirectory =
+    directoryPath === undefined ? undefined : directoryAt(cwd, workspaceDirectories());
+  const chosenDirectoryName = chosenDirectory?.name;
   const owningFolder = (folders ?? [])
     .filter((f) => cwd === f.uri.fsPath || cwd.startsWith(f.uri.fsPath + path.sep))
     .sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length)[0];
@@ -123,7 +127,8 @@ export async function launchNewTerminal(
     directoryName,
   });
 
-  assignPaletteIfNeeded(agent, agents);
+  // Only a launch the office aimed at a Directory wears its defaults.
+  assignPaletteIfNeeded(agent, agents, { picked: palette, directory: chosenDirectory });
   agents.set(id, agent);
   // A fresh session starts with an empty context: a full gauge from the spawn on.
   clearContextUsage(id, agents);

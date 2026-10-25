@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { AGENT_CARD_HEIGHT_PX } from '../constants.js';
+import { AGENT_CARD_HEIGHT_PX, ROSTER_ARROW_WIDTH_PX } from '../constants.js';
 import type { Directory } from '../hooks/useExtensionMessages.js';
+import { useRosterLaunch } from '../hooks/useRosterLaunch.js';
 import { isTypingInTerminal } from '../terminal/terminalDom.js';
 import type { AgentAppearance, TabStatus } from './AgentCard.js';
 import { AgentCardList } from './AgentCardList.js';
+import { PhoneCharacterPicker } from './CharacterPicker.js';
 import { LaunchDrawer } from './LaunchDrawer.js';
 import { PixelIcon } from './ui/PixelIcon.js';
 
@@ -18,14 +20,18 @@ interface MobileAgentBarProps {
   activeAgentId: number | null;
   onSelectAgent: (agentId: number) => void;
   onCloseAgent: (agentId: number) => void;
-  /** Launch into a Directory picked from the + card's drawer. */
-  onLaunchDirectory: (directory: Directory) => void;
+  /** Launch into a Directory picked from the + card's drawer, wearing
+   *  `palette` when the launch started from the roster. */
+  onLaunchDirectory: (directory: Directory, palette?: number) => void;
   /** Directories offered by the launch drawer (tap on the + card). */
   directories: Directory[];
   /** Drawer's pinned `+ Directory` row — opens the Directory modal empty. */
   onAddDirectory: () => void;
   /** Pencil on a user-defined row — opens the modal pre-filled. */
   onEditDirectory: (directory: Directory) => void;
+  /** Opens the Characters view. Absent hides the Agents button (a
+   *  read-only office, or the terminal page). */
+  onOpenCharacters?: () => void;
   /** False when the server has no working PTY — the + card shows disabled. */
   canLaunch: boolean;
   launchUnavailableReason: string | null;
@@ -55,6 +61,7 @@ export function MobileAgentBar({
   directories,
   onAddDirectory,
   onEditDirectory,
+  onOpenCharacters,
   canLaunch,
   launchUnavailableReason,
   getAppearance,
@@ -62,6 +69,14 @@ export function MobileAgentBar({
   onReorder,
 }: MobileAgentBarProps) {
   const [isLaunchDrawerOpen, setIsLaunchDrawerOpen] = useState(false);
+  // The roster above the + card: a pick opens the drawer for that character.
+  const roster = useRosterLaunch({
+    canLaunch,
+    onOpenCharacters,
+    isDrawerOpen: isLaunchDrawerOpen,
+    openDrawer: () => setIsLaunchDrawerOpen(true),
+  });
+  const { setRosterOpen } = roster;
 
   const launchRef = useRef<HTMLDivElement>(null);
 
@@ -69,8 +84,15 @@ export function MobileAgentBar({
   // A plain press never launches: it opens the drawer, and the launch happens
   // from a Directory row (the mobile counterpart of desktop's + Agent click).
   const handleLaunchClick = () => {
+    setRosterOpen(false);
+    roster.clearPick();
     setIsLaunchDrawerOpen(true);
   };
+
+  // The button goes away on the terminal page; take the roster with it.
+  useEffect(() => {
+    if (!onOpenCharacters) setRosterOpen(false);
+  }, [onOpenCharacters, setRosterOpen]);
 
   // Close the drawer on a press anywhere outside the launch card.
   useEffect(() => {
@@ -103,14 +125,24 @@ export function MobileAgentBar({
     // iOS only claims the swipe gesture there. touch-pan-x: the bar scrolls
     // horizontally only; a vertical drag must not pan the page (iOS pans the
     // layout viewport while the keyboard is up).
-    <div className="shrink-0 bg-bg border-t-2 border-border touch-pan-x">
+    <div className="relative shrink-0 bg-bg border-t-2 border-border touch-pan-x">
+      <PhoneCharacterPicker
+        isOpen={roster.isRosterOpen}
+        containerRef={roster.rosterRef}
+        onPick={roster.pick}
+        onEdit={roster.edit}
+        onNew={roster.addNew}
+      />
       <div className="flex items-stretch gap-6 px-8 py-6">
         {/* Launch card pinned on the left; only the agent cards scroll.
             A tap opens the launch drawer above it — so the wrapper is the
             positioning context and the outside-press boundary. */}
         <div ref={launchRef} className="relative shrink-0 flex">
-          {/* The + card: a square as tall as the bar's cards (sized, not
-              stretched: a stretched aspect-ratio box never widens its parent). */}
+          {/* The + card and, right of it, the roster's arrow: one card, two
+              buttons, as tall as the bar's cards (sized, not stretched: a
+              stretched aspect-ratio box never widens its parent). + is
+              square; the arrow a narrow tab beside it. It points up while the roster is
+              shut and turns down while it is open; a tap toggles it. */}
           <div className="flex shrink-0">
             <button
               onClick={canLaunch ? handleLaunchClick : undefined}
@@ -129,13 +161,40 @@ export function MobileAgentBar({
             >
               <PixelIcon name="plus" />
             </button>
+            {onOpenCharacters && (
+              <button
+                ref={roster.buttonRef}
+                type="button"
+                onClick={() => {
+                  setIsLaunchDrawerOpen(false);
+                  setRosterOpen((open) => !open);
+                }}
+                aria-label="Roster"
+                aria-expanded={roster.isRosterOpen}
+                title={roster.isRosterOpen ? 'Hide roster' : 'Roster'}
+                // Enabled even when nothing can launch: a pick then edits.
+                style={{ width: ROSTER_ARROW_WIDTH_PX, height: AGENT_CARD_HEIGHT_PX }}
+                className={`flex items-center justify-center border-2 border-l-bg/40 rounded-none select-none cursor-pointer ${
+                  canLaunch
+                    ? 'bg-accent border-accent text-white active:bg-accent-bright'
+                    : 'bg-btn-bg border-border text-text-muted'
+                }`}
+              >
+                <span
+                  className={`flex transition-transform duration-200 ${roster.isRosterOpen ? '' : 'rotate-180'}`}
+                >
+                  <PixelIcon name="down" scale={1} />
+                </span>
+              </button>
+            )}
           </div>
           <LaunchDrawer
             isOpen={isLaunchDrawerOpen}
             directories={directories}
-            onSelect={(directory) => {
+            pick={roster.pendingPick}
+            onSelect={(directory, palette) => {
               setIsLaunchDrawerOpen(false);
-              onLaunchDirectory(directory);
+              onLaunchDirectory(directory, palette);
             }}
             onAddDirectory={() => {
               setIsLaunchDrawerOpen(false);

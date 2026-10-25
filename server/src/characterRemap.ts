@@ -1,5 +1,6 @@
 import type { AgentLook } from '../../core/src/messages.js';
 import type { AgentStateStore } from './agentStateStore.js';
+import { readConfig, withDirectoryCharacters, writeConfig } from './configPersistence.js';
 import { assignPaletteIfNeeded } from './paletteAssigner.js';
 import type { AgentState } from './types.js';
 
@@ -8,9 +9,10 @@ import type { AgentState } from './types.js';
  * when a save inserts, deletes or moves characters: `remap` (core characterRemap) takes an
  * old index to the new one, undefined for a deleted character.
  *
- * Two processes (the VS Code extension and the standalone server) can share
- * ~/.pixel-agents: each renumbers its OWN agents when it sees the list change (its save,
- * or the file watcher).
+ * Two halves, because two processes (the VS Code extension and the standalone server) can
+ * share ~/.pixel-agents: each renumbers its OWN agents when it sees the list change (its
+ * save, or the file watcher), but only the process that saved renumbers the machine-wide
+ * files, or a second process would renumber them twice.
  */
 export type PaletteRemap = (palette: number) => number | undefined;
 
@@ -64,4 +66,33 @@ export function remapAgentLooks(store: AgentStateStore, remap: PaletteRemap): Ag
     adapter.saveSeats(seats);
   }
   return changed.map((a) => ({ id: a.id, palette: a.palette!, repeat: a.repeat ?? 0 }));
+}
+
+/** An index list renumbered, deleted characters left out (and no index twice). */
+function remapList(list: readonly number[], remap: PaletteRemap): number[] {
+  const out: number[] = [];
+  for (const i of list) {
+    const next = remap(i);
+    if (next !== undefined && !out.includes(next)) out.push(next);
+  }
+  return out;
+}
+
+/**
+ * Renumber the machine-wide references: the Directories' default characters and the
+ * roster's recency (config.json).
+ * Returns whether config.json changed (its Directories and recency need re-sending).
+ */
+export function remapSharedCharacterRefs(remap: PaletteRemap): boolean {
+  const cfg = readConfig();
+  const before = JSON.stringify([cfg.directories, cfg.recentCharacters]);
+  cfg.directories = cfg.directories.map((d) =>
+    d.characters
+      ? withDirectoryCharacters(d, { ...d, characters: remapList(d.characters, remap) })
+      : d,
+  );
+  cfg.recentCharacters = remapList(cfg.recentCharacters, remap);
+  if (JSON.stringify([cfg.directories, cfg.recentCharacters]) === before) return false;
+  writeConfig(cfg);
+  return true;
 }
