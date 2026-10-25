@@ -132,6 +132,7 @@ describe('claudeTeamProvider', () => {
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('ghost-writer');
       expect(result[0].toolUseId).toBe('toolu_1');
+      expect(result[0].taskId).toBe('a'); // from the transcript's name, agent-<id>.jsonl
       expect(result[0].description).toBe('Write a haiku');
     });
 
@@ -191,6 +192,33 @@ describe('claudeTeamProvider', () => {
         ]),
       ).toBeNull();
       expect(claudeTeamProvider.extractTeammateSpawnFromToolResult!('Agent', undefined)).toBeNull();
+    });
+  });
+
+  describe('extractBackgroundAgentFromToolResult', () => {
+    const extract = claudeTeamProvider.extractBackgroundAgentFromToolResult!;
+
+    it('an async Agent launch names its agent id', () => {
+      expect(
+        extract('Agent', [
+          { type: 'text', text: 'Async agent launched successfully.\nagentId: a4cb86c99458dbe55' },
+        ]),
+      ).toEqual({ taskId: 'a4cb86c99458dbe55' });
+    });
+
+    it('a SendMessage that revived a stopped agent names it', () => {
+      expect(
+        extract(
+          'SendMessage',
+          '{"success":true,"message":"Resuming agent impl-07","resumedAgentId":"ad19f2"}',
+        ),
+      ).toEqual({ taskId: 'ad19f2' });
+    });
+
+    it('anything else starts no background agent', () => {
+      expect(extract('Agent', 'Spawned successfully.')).toBeNull();
+      expect(extract('SendMessage', '{"success":true,"message":"Message sent"}')).toBeNull();
+      expect(extract('Read', 'Async agent launched successfully.')).toBeNull();
     });
   });
 

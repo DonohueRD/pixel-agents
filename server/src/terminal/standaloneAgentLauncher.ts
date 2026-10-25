@@ -165,6 +165,7 @@ export function reattachTerminalAgents(deps: LaunchStandaloneAgentDeps): number[
       isExternal: false,
       providerId: deps.provider.id,
     });
+    relocateTranscript(deps.provider, agent);
     try {
       agent.fileOffset = fs.statSync(agent.jsonlFile).size;
     } catch {
@@ -178,6 +179,34 @@ export function reattachTerminalAgents(deps: LaunchStandaloneAgentDeps): number[
 
   if (restored.length > 0) store.persist();
   return restored;
+}
+
+/**
+ * Point a reattached agent at its transcript when it isn't where the saved
+ * record says. Older servers saved the path under the Directory as given, but
+ * the CLI files it under the symlink-resolved path, so such an agent never got
+ * its transcript (and none of its sub-agents) watched. The session id is a
+ * UUID, so the one `<sessionId>.jsonl` under the session roots is its own.
+ */
+function relocateTranscript(provider: HookProvider, agent: AgentState): void {
+  if (fs.existsSync(agent.jsonlFile)) return;
+  const name = path.basename(agent.jsonlFile);
+  for (const root of provider.getAllSessionRoots?.() ?? []) {
+    let dirs: string[];
+    try {
+      dirs = fs.readdirSync(root);
+    } catch {
+      continue;
+    }
+    for (const dir of dirs) {
+      const file = path.join(root, dir, name);
+      if (!fs.existsSync(file)) continue;
+      console.log(`[Pixel Agents] Terminal: Agent ${agent.id} - transcript found at ${file}`);
+      agent.jsonlFile = file;
+      agent.projectDir = path.dirname(file);
+      return;
+    }
+  }
 }
 
 /** What every agent with a terminal gets, launched or reattached: a place in
