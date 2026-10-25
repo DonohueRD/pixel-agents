@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
-import type { UsageBridgeStatus } from '../../../core/src/messages.js';
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 import { isBrowserRuntime } from '../runtime.js';
 import { transport } from '../transport/index.js';
+import { useUsageBridge } from '../usage/useUsageBridge.js';
 import { Button } from './ui/Button.js';
 import { Checkbox } from './ui/Checkbox.js';
 import { MenuItem } from './ui/MenuItem.js';
@@ -29,11 +29,6 @@ interface SettingsModalProps {
    *  ~/.claude/settings.json. */
   hooksInstalled: boolean;
   onToggleHooksEnabled: () => void;
-  /** Usage Bars install state (usageBridgeStatus); undefined hides the row
-   *  (this host was not told, or has no usage bridge). */
-  usageBridge: UsageBridgeStatus | undefined;
-  /** Install (after the disclosure is confirmed) or remove the usage bridge. */
-  onSetUsageBridgeEnabled: (enabled: boolean) => void;
   /** Whether the areas overlay is rendered outside of the Areas edit tool. */
   showAreas: boolean;
   onToggleShowAreas: () => void;
@@ -65,8 +60,6 @@ export function SettingsModal({
   onToggleWatchAllSessions,
   hooksInstalled,
   onToggleHooksEnabled,
-  usageBridge,
-  onSetUsageBridgeEnabled,
   showAreas,
   onToggleShowAreas,
   showAreasAvailable,
@@ -82,14 +75,11 @@ export function SettingsModal({
   const [assetDirDraft, setAssetDirDraft] = useState('');
   // Usage Bars: installing rewrites the user's status line, so it asks first
   // with the server's own disclosure. Pending until the server answers with
-  // the install state (no optimistic tick, like the hooks row).
+  // the install state (no optimistic tick, like the hooks row). The state
+  // (usageBridgeStatus) undefined hides the row: this host was not told, or
+  // has no usage bridge.
   const [confirmUsageBars, setConfirmUsageBars] = useState(false);
-  const [usagePending, setUsagePending] = useState(false);
-  useEffect(() => setUsagePending(false), [usageBridge]);
-  const setUsageBars = (enabled: boolean) => {
-    setUsagePending(true);
-    onSetUsageBridgeEnabled(enabled);
-  };
+  const { status: usageBridge, pending: usagePending, setEnabled: setUsageBars } = useUsageBridge();
 
   return (
     <>

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { UsageBridgeStatus } from '../../../core/src/messages.js';
 import { DISCORD_INVITE_URL } from '../changelogData.js';
 import {
   CLAUDE_CODE_INSTALL_COMMAND,
@@ -11,6 +10,7 @@ import {
 } from '../constants.js';
 import type { ConsentChoice } from '../hooks/introTourState.js';
 import type { OfficeState } from '../office/engine/officeState.js';
+import { useUsageBridge } from '../usage/useUsageBridge.js';
 import { DiscordIcon } from './ChangelogModal.js';
 import { computeIntroBubbleGeometry } from './introBubbleGeometry.js';
 import { Button } from './ui/Button.js';
@@ -53,13 +53,6 @@ interface IntroBubbleProps {
    *  ladder. Escape aborts the tour only when the tour is topmost; without
    *  this gate it silently aborted UNDER an open modal. */
   escapeSuppressed: boolean;
-  /** The usage bridge's install state (usageBridgeStatus), undefined until the
-   *  server says — and forever on a host that has none. Decides whether the
-   *  tour offers the usage bars step, and is that step's verdict. */
-  usageBridge: UsageBridgeStatus | undefined;
-  /** The usage bars step's "Show Usage Bars": installs the bridge (the step
-   *  shows its disclosure, so the click is the consent). */
-  onEnableUsageBars: () => void;
 }
 
 type StepId = 'welcome' | 'claudeCode' | 'usage' | 'consent' | 'closing';
@@ -69,7 +62,8 @@ type StepId = 'welcome' | 'claudeCode' | 'usage' | 'consent' | 'closing';
  * shared by both surfaces (the VS Code webview and the standalone browser
  * render this same component off the same server message).
  *
- * Steps: welcome → Claude Code → usage bars (only where the bridge can be installed and is not yet) → hooks consent → all set. The consent step is
+ * Steps: welcome → Claude Code → usage bars (only where the bridge can be
+ * installed and is not yet) → hooks consent → all set. The consent step is
  * the same first-run ask as before, now wrapped in a tour; its copy still
  * arrives from the server and its buttons still send `hooksConsentResponse`
  * the moment they are clicked. Back from the closing step re-opens the consent
@@ -109,12 +103,24 @@ export function IntroBubble({
   onChoice,
   onClose,
   escapeSuppressed,
-  usageBridge,
-  onEnableUsageBars,
 }: IntroBubbleProps) {
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
   const [step, setStep] = useState<StepId>('welcome');
+
+  // The usage bridge's install state (usageBridgeStatus), undefined until the
+  // server says — and forever on a host that has none. Decides whether the
+  // tour offers the usage bars step, and is that step's verdict. The step's
+  // install is pending until a NEWER status arrives (the server answers every
+  // request, success or not); then the step moves on, or stays to show why it
+  // failed.
+  const usage = useUsageBridge((status) => {
+    if (status?.installed) setStep('consent');
+  });
+  const usageBridge = usage.status;
+  const usagePending = usage.pending;
+  // "Show Usage": the step shows the disclosure, so the click is the consent.
+  const enableUsageBars = (): void => usage.setEnabled(true);
 
   // The usage bars step, decided ONCE from the first usageBridgeStatus: offered
   // when the bridge can be installed and isn't yet, and then kept for the whole
@@ -133,23 +139,6 @@ export function IntroBubble({
     'closing',
   ];
   const stepIndex = steps.indexOf(step);
-
-  // The usage install in flight: the status on screen when it was sent. Pending
-  // until a NEWER status arrives (the server answers every request, success or
-  // not); then the step moves on, or stays to show why it failed.
-  const [usageSentFrom, setUsageSentFrom] = useState<UsageBridgeStatus | null | undefined>(
-    undefined,
-  );
-  const usagePending = usageSentFrom !== undefined && usageBridge === (usageSentFrom ?? undefined);
-  useEffect(() => {
-    if (usageSentFrom === undefined || usageBridge === (usageSentFrom ?? undefined)) return;
-    setUsageSentFrom(undefined);
-    if (usageBridge?.installed) setStep('consent');
-  }, [usageBridge, usageSentFrom]);
-  const enableUsageBars = (): void => {
-    setUsageSentFrom(usageBridge ?? null);
-    onEnableUsageBars();
-  };
 
   // The greeter lives exactly as long as this component.
   useEffect(() => {
