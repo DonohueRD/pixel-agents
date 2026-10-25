@@ -61,38 +61,9 @@ export function MobileMenu({
 
   const panelRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
-  // A swipe styles the panel inline while it drags; the classes take over
-  // again once it ends (in either direction), so the release animates from
-  // where the finger let go.
-  const clearSwipe = () => {
-    for (const el of [panelRef.current, backdropRef.current]) {
-      el?.style.removeProperty('transition');
-      el?.style.removeProperty('translate');
-      el?.style.removeProperty('opacity');
-    }
-  };
-  useImperativeHandle(
-    swipeRef,
-    () => ({
-      travel: () => panelRef.current?.offsetWidth ?? 0,
-      drag(px) {
-        const panel = panelRef.current;
-        const backdrop = backdropRef.current;
-        if (!panel || !backdrop) return;
-        const width = panel.offsetWidth;
-        panel.style.transition = 'none';
-        panel.style.translate = `${String(px - width)}px 0`;
-        backdrop.style.transition = 'none';
-        backdrop.style.opacity = String(width ? px / width : 0);
-      },
-      commit() {
-        clearSwipe();
-        onOpen();
-      },
-      settle: clearSwipe,
-    }),
-    [onOpen],
-  );
+  useImperativeHandle(swipeRef, () => menuPanel({ panelRef, backdropRef }, 'shut', onOpen), [
+    onOpen,
+  ]);
 
   // Open, a leftward swipe anywhere on it (or the dimmed office beside it)
   // pushes it back out with the finger. Rows are buttons, so none opt out:
@@ -100,29 +71,11 @@ export function MobileMenu({
   const rootRef = useRef<HTMLDivElement>(null);
   useEdgeSwipe(
     rootRef,
-    open
-      ? {
-          right: {
-            travel: () => panelRef.current?.offsetWidth ?? 0,
-            drag(px) {
-              const panel = panelRef.current;
-              const backdrop = backdropRef.current;
-              if (!panel || !backdrop) return;
-              const width = panel.offsetWidth;
-              panel.style.transition = 'none';
-              panel.style.translate = `${String(-px)}px 0`;
-              backdrop.style.transition = 'none';
-              backdrop.style.opacity = String(width ? 1 - px / width : 1);
-            },
-            commit() {
-              clearSwipe();
-              onClose();
-            },
-            settle: clearSwipe,
-          },
-        }
-      : {},
-    { anywhere: true, optOut: '' },
+    open ? { right: menuPanel({ panelRef, backdropRef }, 'open', onClose) } : {},
+    {
+      anywhere: true,
+      optOut: '',
+    },
   );
 
   return (
@@ -186,6 +139,68 @@ export function MobileMenu({
           </Button>
         </div>
       </aside>
+    </div>
+  );
+}
+
+interface MenuRefs {
+  panelRef: RefObject<HTMLElement | null>;
+  backdropRef: RefObject<HTMLDivElement | null>;
+}
+
+/** The menu following the finger: pulled in from shut, or pushed out from
+ *  open (like MobileShell's trackPanel for the terminal page). */
+function menuPanel(
+  { panelRef, backdropRef }: MenuRefs,
+  from: 'shut' | 'open',
+  onCommit: () => void,
+): SwipePanel {
+  // A swipe styles the panel inline while it drags; the classes take over
+  // again once it ends (in either direction), so the release animates from
+  // where the finger let go.
+  const clearSwipe = () => {
+    for (const el of [panelRef.current, backdropRef.current]) {
+      el?.style.removeProperty('transition');
+      el?.style.removeProperty('translate');
+      el?.style.removeProperty('opacity');
+    }
+  };
+  return {
+    travel: () => panelRef.current?.offsetWidth ?? 0,
+    drag(px) {
+      const panel = panelRef.current;
+      const backdrop = backdropRef.current;
+      if (!panel || !backdrop) return;
+      const width = panel.offsetWidth;
+      // How far open it is under the finger, 0 to 1.
+      const shown = from === 'shut' ? (width ? px / width : 0) : width ? 1 - px / width : 1;
+      panel.style.transition = 'none';
+      panel.style.translate = `${String(from === 'shut' ? px - width : -px)}px 0`;
+      backdrop.style.transition = 'none';
+      backdrop.style.opacity = String(shown);
+    },
+    commit() {
+      clearSwipe();
+      onCommit();
+    },
+    settle: clearSwipe,
+  };
+}
+
+/** The phone's menu button, floating top-left over the office. */
+export function MobileMenuButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <div className="absolute mobile-safe-top left-8 z-20 flex gap-6">
+      <Button
+        size="icon_lg"
+        variant={active ? 'active' : 'default'}
+        className="border-border! shadow-pixel"
+        onClick={onClick}
+        aria-label="Menu"
+        title="Menu"
+      >
+        <PixelIcon name="menu" />
+      </Button>
     </div>
   );
 }

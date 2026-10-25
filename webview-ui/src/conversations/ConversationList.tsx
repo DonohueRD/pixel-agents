@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
 import type { Conversation, DirectoryConversations } from '../../../core/src/messages.js';
-import { useCast } from '../characters/castStore.js';
 import type { TabStatus } from '../components/AgentCard.js';
 import { CharacterMugShot } from '../components/CharacterMugShot.js';
 import { STATUS_DOT } from '../components/statusDot.js';
@@ -37,9 +36,10 @@ interface ConversationListProps {
  * panel: first the newest across every Directory ("Recent", each with its
  * Directory's name), then each Directory's own last conversations under a
  * header that expands and collapses it (one open at a time, collapsed until
- * this viewer opens it; remembered per browser). Only conversations no agent in the office is
- * running, titled as the coding agent titles them, each with a mug shot of
- * the character its agent wore.
+ * this viewer opens it; remembered per browser). Titled as the coding agent
+ * titles them, each with a mug shot of the character its agent wore. One an
+ * agent in the office is running shows its status dot, and pressing it goes
+ * to that agent; pressing a past one resumes it.
  */
 export function ConversationList({
   open,
@@ -54,14 +54,12 @@ export function ConversationList({
       ? onOpenAgent(conversation.agentId)
       : onResume(conversation.sessionId, directory.path);
   const list = useConversations(open);
-  const [expanded, setExpanded] = useState(storedExpanded);
+  // One open at a time: opening a Directory shuts the one that was open.
+  const [openPath, setOpenPath] = useState(storedOpenPath);
   const toggle = (path: string) => {
-    // One open at a time: opening a Directory shuts the one that was open.
-    setExpanded((was) => {
-      const next = new Set(was.has(path) ? [] : [path]);
-      storeExpanded(next);
-      return next;
-    });
+    const next = openPath === path ? null : path;
+    storeOpenPath(next);
+    setOpenPath(next);
   };
 
   // flex-1 even while empty: whatever sits below the list stays at the bottom.
@@ -99,7 +97,7 @@ export function ConversationList({
         <DirectorySection
           key={directory.path}
           directory={directory}
-          expanded={expanded.has(directory.path)}
+          expanded={openPath === directory.path}
           onToggle={() => toggle(directory.path)}
           now={now}
           press={press}
@@ -120,19 +118,20 @@ function SectionHeading({ children }: { children: string }) {
   );
 }
 
-function storedExpanded(): Set<string> {
+/** The open Directory, stored as `[path]` (or `[]`). */
+function storedOpenPath(): string | null {
   try {
     const raw = JSON.parse(localStorage.getItem(CONVERSATION_EXPANDED_KEY) ?? '[]') as unknown;
     const paths = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string') : [];
-    return new Set(paths.slice(0, 1));
+    return paths[0] ?? null;
   } catch {
-    return new Set();
+    return null;
   }
 }
 
-function storeExpanded(paths: Set<string>): void {
+function storeOpenPath(path: string | null): void {
   try {
-    localStorage.setItem(CONVERSATION_EXPANDED_KEY, JSON.stringify([...paths]));
+    localStorage.setItem(CONVERSATION_EXPANDED_KEY, JSON.stringify(path === null ? [] : [path]));
   } catch {
     // Not remembered; it still expands and collapses.
   }
@@ -183,22 +182,7 @@ function DirectorySection({
           <PixelIcon name={expanded ? 'down' : 'next'} scale={1} />
         </span>
         {/* Like a row: a running agent's status dot, else how long ago the last one was. */}
-        {running ? (
-          <span
-            aria-label={runningStatus ?? 'running'}
-            className={`shrink-0 flex ml-auto mx-4 ${runningStatus ? STATUS_DOT[runningStatus] : 'text-text-muted'}`}
-          >
-            <PixelIcon name="dot" scale={1} />
-          </span>
-        ) : (
-          latest !== undefined && (
-            <PixelText
-              text={timeAgo(latest, now)}
-              smaller
-              className="shrink-0 ml-auto text-xs text-text-muted"
-            />
-          )
-        )}
+        <RowTrail running={running} status={runningStatus} at={latest} now={now} push />
       </button>
       <Unfold open={expanded}>
         {/* A rule along the bottom: where its drawer ends. */}
@@ -292,8 +276,6 @@ interface RowProps {
 }
 
 function ConversationRow({ conversation, where, onPress, statusFor, now, roomy }: RowProps) {
-  // Subscribed so the mug shot redraws once the cast's sheets are in.
-  useCast();
   const { title, updatedAt, palette, repeat, agentId } = conversation;
   const status = agentId !== undefined ? statusFor(agentId) : null;
   return (
@@ -326,23 +308,51 @@ function ConversationRow({ conversation, where, onPress, statusFor, now, roomy }
           </span>
         )}
       </span>
-      {agentId !== undefined ? (
-        // Running: its agent card's status colour in place of the time, as a
-        // round dot (a square one reads as a stop button).
-        <span
-          data-testid="conversation-status"
-          aria-label={status ?? 'running'}
-          className={`shrink-0 flex mx-4 ${status ? STATUS_DOT[status] : 'text-text-muted'}`}
-        >
-          <PixelIcon name="dot" scale={1} />
-        </span>
-      ) : (
-        <PixelText
-          text={timeAgo(updatedAt, now)}
-          smaller
-          className="shrink-0 text-xs text-text-muted"
-        />
-      )}
+      <RowTrail
+        running={agentId !== undefined}
+        status={status}
+        at={updatedAt}
+        now={now}
+        testId="conversation-status"
+      />
     </button>
+  );
+}
+
+interface RowTrailProps {
+  running: boolean;
+  status: TabStatus | null;
+  /** When it was last written (nothing shows without it). */
+  at: number | undefined;
+  now: number;
+  /** Pushed to the row's end (the header's; a row's title already fills). */
+  push?: boolean;
+  /** The status dot's test id. */
+  testId?: string;
+}
+
+/**
+ * A row's end: running, its agent card's status colour in place of the time,
+ * as a round dot (a square one reads as a stop button); else how long ago.
+ */
+function RowTrail({ running, status, at, now, push = false, testId }: RowTrailProps) {
+  if (running) {
+    return (
+      <span
+        data-testid={testId}
+        aria-label={status ?? 'running'}
+        className={`shrink-0 flex ${push ? 'ml-auto ' : ''}mx-4 ${status ? STATUS_DOT[status] : 'text-text-muted'}`}
+      >
+        <PixelIcon name="dot" scale={1} />
+      </span>
+    );
+  }
+  if (at === undefined) return null;
+  return (
+    <PixelText
+      text={timeAgo(at, now)}
+      smaller
+      className={`shrink-0 ${push ? 'ml-auto ' : ''}text-xs text-text-muted`}
+    />
   );
 }

@@ -15,27 +15,25 @@ import { SettingsModal } from './components/SettingsModal.js';
 import { TerminalDrawer } from './components/TerminalDrawer.js';
 import { TerminalHideRibbon } from './components/TerminalHideRibbon.js';
 import { Tooltip } from './components/Tooltip.js';
-import { Button } from './components/ui/Button.js';
 import { Modal } from './components/ui/Modal.js';
-import { PixelIcon } from './components/ui/PixelIcon.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
-import { CONVERSATION_SIDEBAR_SHUT_KEY, OFFICE_CANVAS_TEST_ID } from './constants.js';
+import { OFFICE_CANVAS_TEST_ID } from './constants.js';
 import { ConversationSidebar } from './conversations/ConversationSidebar.js';
-import { resumeConversation } from './conversations/useConversations.js';
+import { useConversationSidebar } from './conversations/useConversationSidebar.js';
 import { useDirectoryEditor } from './hooks/useDirectoryEditor.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
-import type { Directory } from './hooks/useExtensionMessages.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
 import { useIntroTour } from './hooks/useIntroTour.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
+import { useLaunchActions } from './hooks/useLaunchActions.js';
 import { popClass, usePresence } from './hooks/usePresence.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
-import { MobileMenu } from './mobile/MobileMenu.js';
+import { MobileMenu, MobileMenuButton } from './mobile/MobileMenu.js';
 import { MobileShell } from './mobile/MobileShell.js';
-import type { SwipePanel } from './mobile/useEdgeSwipe.js';
+import { useMobileMenu } from './mobile/useMobileMenu.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
@@ -144,21 +142,10 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // The Layout editor's panel, kept on screen while it rolls shut.
   const editorPanel = usePresence(editor.isEditMode);
-  // Desktop: resuming needs a terminal, so only a tokened standalone office
-  // lists past conversations; the zoom stack's top button shows and hides them.
-  const hasSidebar = terminalAvailable && !officeReadOnly;
-  const [sidebarOpen, setSidebarOpen] = useState(() => !storedSidebarShut());
-  const toggleSidebar = useCallback(() => {
-    setSidebarOpen((was) => {
-      storeSidebarShut(was);
-      return !was;
-    });
-  }, []);
-  const [isConversationsOpen, setIsConversationsOpen] = useState(false);
-  const openConversations = useCallback(() => setIsConversationsOpen(true), []);
-  const closeConversations = useCallback(() => setIsConversationsOpen(false), []);
-  /** The phone menu as a swipe panel (MobileMenu fills it, MobileShell drags it). */
-  const menuSwipe = useRef<SwipePanel>(null);
+  const sidebar = useConversationSidebar(terminalAvailable, officeReadOnly);
+  const { hasSidebar } = sidebar;
+  // The phone menu (recent conversations + Settings).
+  const menu = useMobileMenu();
   const [isCharactersOpen, setIsCharactersOpen] = useState(false);
   const openCharacters = useCallback(() => {
     setIsSettingsOpen(false);
@@ -197,22 +184,8 @@ function App() {
     agentSeenActivity,
   });
 
-  const { expectLaunch } = terminalDrawer;
-  // palette: the character picked from the roster (absent = the Directory's
-  // default characters, else a random pick, server-side).
-  const launchIntoDirectory = useCallback(
-    (directory: Directory, palette?: number) => {
-      expectLaunch();
-      transport.send({ type: 'launchAgent', directoryPath: directory.path, palette });
-    },
-    [expectLaunch],
-  );
-  const resumeAndFocus = useCallback(
-    (sessionId: string, directoryPath: string) => {
-      expectLaunch();
-      resumeConversation(sessionId, directoryPath);
-    },
-    [expectLaunch],
+  const { launch: launchIntoDirectory, resume: resumeAndFocus } = useLaunchActions(
+    terminalDrawer.expectLaunch,
   );
   const mobileShell = useMobileShell({
     getOfficeState,
@@ -220,7 +193,6 @@ function App() {
     drawer: terminalDrawer,
     focusedAgentId,
     launchAgent: launchIntoDirectory,
-    resumeConversation: resumeAndFocus,
   });
 
   // A launched or resumed agent comes in focused: once its terminal opens (the
@@ -441,23 +413,15 @@ function App() {
     [terminalAgentIds, selectTerminal],
   );
 
-  // A running conversation pressed in the conversation list: its agent, as
-  // its card would show it — desktop: its terminal pane (or focus, without
-  // one); phone: its terminal page.
-  const openAgentFromList = useCallback(
+  // A running conversation pressed in the desktop sidebar: its agent, as its
+  // card would show it (its terminal pane, or focus without one). The phone's
+  // menu takes mobileShell.openAgent.
+  const openAgentFromSidebar = useCallback(
     (agentId: number) => {
       getOfficeState().selectAndFollow(agentId);
-      const hasTerminal = terminalAgentIds.includes(agentId);
-      if (isMobile) {
-        if (hasTerminal) {
-          terminalDrawer.reveal(agentId);
-          mobileShell.showTerminal();
-        }
-      } else {
-        handleCardSelect(agentId);
-      }
+      handleCardSelect(agentId);
     },
-    [terminalAgentIds, isMobile, terminalDrawer, mobileShell, handleCardSelect],
+    [handleCardSelect],
   );
 
   const officeState = getOfficeState();
@@ -595,7 +559,7 @@ function App() {
             <ZoomControls
               zoom={editor.zoom}
               onZoomChange={editor.handleZoomChange}
-              sidebar={hasSidebar ? { open: sidebarOpen, onToggle: toggleSidebar } : undefined}
+              sidebar={hasSidebar ? { open: sidebar.open, onToggle: sidebar.toggle } : undefined}
             />
           )}
 
@@ -766,19 +730,7 @@ function App() {
             its tools are drag/hover-driven). The roster opens from the arrow
             on the + card (MobileAgentBar). */}
       {isMobile && !isDebugMode && !officeReadOnly && (
-        <div className="absolute mobile-safe-top left-8 z-20 flex gap-6">
-          {/* The menu: recent conversations, and Settings at its foot. */}
-          <Button
-            size="icon_lg"
-            variant={isConversationsOpen ? 'active' : 'default'}
-            className="border-border! shadow-pixel"
-            onClick={openConversations}
-            aria-label="Menu"
-            title="Menu"
-          >
-            <PixelIcon name="menu" />
-          </Button>
-        </div>
+        <MobileMenuButton active={menu.open} onClick={menu.show} />
       )}
 
       <VersionIndicator
@@ -843,15 +795,15 @@ function App() {
           onReorder={officeReadOnly ? undefined : saveCardOrder}
           onOpenCharacters={officeReadOnly ? undefined : openCharacters}
           keyboardOpen={keyboard.keyboardOpen}
-          menuSwipe={officeReadOnly ? undefined : menuSwipe}
+          menuSwipe={officeReadOnly ? undefined : menu.swipe}
         />
       ) : (
         <>
           {hasSidebar && (
             <ConversationSidebar
-              open={sidebarOpen}
+              open={sidebar.open}
               onResume={resumeAndFocus}
-              onOpenAgent={openAgentFromList}
+              onOpenAgent={openAgentFromSidebar}
               statusFor={terminalDrawer.statusFor}
               isSettingsOpen={isSettingsOpen}
               onToggleSettings={() => setIsSettingsOpen((v) => !v)}
@@ -957,14 +909,14 @@ function App() {
 
       {isMobile && !officeReadOnly && (
         <MobileMenu
-          open={isConversationsOpen}
-          onOpen={openConversations}
-          onClose={closeConversations}
-          swipeRef={menuSwipe}
+          open={menu.open}
+          onOpen={menu.show}
+          onClose={menu.close}
+          swipeRef={menu.swipe}
           onOpenSettings={() => setIsSettingsOpen(true)}
           showConversations={terminalAvailable}
-          onResume={mobileShell.resume}
-          onOpenAgent={openAgentFromList}
+          onResume={resumeAndFocus}
+          onOpenAgent={mobileShell.openAgent}
           statusFor={terminalDrawer.statusFor}
         />
       )}
@@ -1030,23 +982,6 @@ function App() {
       )}
     </div>
   );
-}
-
-function storedSidebarShut(): boolean {
-  try {
-    return localStorage.getItem(CONVERSATION_SIDEBAR_SHUT_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function storeSidebarShut(shut: boolean): void {
-  try {
-    if (shut) localStorage.setItem(CONVERSATION_SIDEBAR_SHUT_KEY, '1');
-    else localStorage.removeItem(CONVERSATION_SIDEBAR_SHUT_KEY);
-  } catch {
-    // Not remembered; it still opens and shuts.
-  }
 }
 
 export default App;

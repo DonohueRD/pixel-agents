@@ -18,9 +18,9 @@ export interface MobileShellController {
    *  `palette` when a character was picked first). App slides over once the
    *  new terminal appears (`drawer.lastLaunched`). */
   launch: (directory: Directory, palette?: number) => void;
-  /** A past conversation picked from History: resume it. App slides over
-   *  once its terminal appears (`drawer.lastLaunched`, like a launch). */
-  resume: (sessionId: string, directoryPath: string) => void;
+  /** A running conversation pressed in the menu: focus its agent and, when it
+   *  has a pane, slide to it. */
+  openAgent: (agentId: number) => void;
 }
 
 interface MobileShellInputs {
@@ -29,7 +29,6 @@ interface MobileShellInputs {
   drawer: TerminalDrawerController;
   focusedAgentId: number | null;
   launchAgent: (directory: Directory, palette?: number) => void;
-  resumeConversation: (sessionId: string, directoryPath: string) => void;
 }
 
 /**
@@ -44,7 +43,6 @@ export function useMobileShell({
   drawer,
   focusedAgentId,
   launchAgent,
-  resumeConversation,
 }: MobileShellInputs): MobileShellController {
   const [view, setView] = useState<MobileView>('office');
   const { reveal } = drawer;
@@ -93,12 +91,22 @@ export function useMobileShell({
     [getOfficeState, terminalAgentIds, view, reveal],
   );
 
+  const openAgent = useCallback(
+    (agentId: number) => {
+      getOfficeState().selectAndFollow(agentId);
+      if (!terminalAgentIds.includes(agentId)) return;
+      reveal(agentId);
+      setView('terminal');
+    },
+    [getOfficeState, terminalAgentIds, reveal],
+  );
+
   return {
     view,
     showTerminal,
     toggleView,
     selectCard,
     launch: launchAgent,
-    resume: resumeConversation,
+    openAgent,
   };
 }
