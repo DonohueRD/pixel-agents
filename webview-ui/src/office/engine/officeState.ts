@@ -48,14 +48,36 @@ function takesSeat(ch: Character): boolean {
   return !ch.isSubagent && ch.matrixEffect !== 'despawn';
 }
 
+type Tile = { col: number; row: number };
+
+function sameSet<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+  return a.size === b.size && [...a].every((x) => b.has(x));
+}
+
+/** Score by steps from `from` (Manhattan distance). */
+function manhattanFrom(from: Tile): (tile: Tile) => number {
+  return (tile) => Math.abs(tile.col - from.col) + Math.abs(tile.row - from.row);
+}
+
+/** Score by rings around `home`: the 8 tiles around it before any 2 away, so
+ *  helpers surround their lead instead of lining up beside it (a diagonal
+ *  neighbour and a tile 2 straight away are equally far in steps). */
+function ringsAround(home: Tile): (tile: Tile) => number {
+  return (tile) => {
+    const dc = Math.abs(tile.col - home.col);
+    const dr = Math.abs(tile.row - home.row);
+    return Math.max(dc, dr) * 1000 + dc + dr;
+  };
+}
+
 export class OfficeState {
   layout: OfficeLayout;
   tileMap: TileTypeVal[][];
   seats: Map<string, Seat>;
   /** Seat uid → the uid of the PC that seat works at (workstations.ts). */
   seatWorkstations: Map<string, string> = new Map();
-  /** The PCs lit in the current furniture instances, as a sorted uid list. */
-  private litWorkstationsKey = '';
+  /** The PCs lit in the current furniture instances. */
+  private litPcs: ReadonlySet<string> = new Set();
   blockedTiles: Set<string>;
   furniture: FurnitureInstance[];
   walkableTiles: Array<{ col: number; row: number }>;
@@ -370,7 +392,6 @@ export class OfficeState {
     return this.pickFromSeats(freeSeats);
   }
 
-  /** Closest walkable tile to (col,row) not occupied by another character, or null. */
   /** The way a lead's sub-agents face: its seat's way (how it sits to work),
    *  or, seatless, its own. Not its walking direction while it wanders, or
    *  its helpers would spin with every step. */
@@ -380,62 +401,51 @@ export class OfficeState {
     return seat ? seat.facingDir : lead.dir;
   }
 
-  private closestFreeWalkableTile(col: number, row: number): { col: number; row: number } | null {
-    const occupied = new Set<string>();
+  /** Tiles taken, as `col,row` keys: every character's tile, except
+   *  character `except`'s; with `destinations`, the tile each is walking to
+   *  too; and `plus`, when given. */
+  private takenTiles(opts: { except?: number; destinations?: boolean; plus?: Tile }): Set<string> {
+    const taken = new Set<string>();
+    if (opts.plus) taken.add(`${opts.plus.col},${opts.plus.row}`);
     for (const ch of this.characters.values()) {
-      occupied.add(`${ch.tileCol},${ch.tileRow}`);
+      if (ch.id === opts.except) continue;
+      taken.add(`${ch.tileCol},${ch.tileRow}`);
+      if (!opts.destinations) continue;
+      const end = ch.path[ch.path.length - 1];
+      if (end) taken.add(`${end.col},${end.row}`);
     }
-    let best: { col: number; row: number } | null = null;
-    let bestDist = Infinity;
+    return taken;
+  }
+
+  /** The walkable tile not in `taken` with the lowest `score`, or null. The
+   *  first one found wins a tie. */
+  private closestTile(taken: Set<string>, score: (tile: Tile) => number): Tile | null {
+    let best: Tile | null = null;
+    let bestScore = Infinity;
     for (const tile of this.walkableTiles) {
-      if (occupied.has(`${tile.col},${tile.row}`)) continue;
-      const d = Math.abs(tile.col - col) + Math.abs(tile.row - row);
-      if (d < bestDist) {
+      if (taken.has(`${tile.col},${tile.row}`)) continue;
+      const d = score(tile);
+      if (d < bestScore) {
         best = tile;
-        bestDist = d;
+        bestScore = d;
       }
     }
     return best;
+  }
+
+  /** Closest walkable tile to (col,row) not occupied by another character, or null. */
+  private closestFreeWalkableTile(col: number, row: number): Tile | null {
+    return this.closestTile(this.takenTiles({}), manhattanFrom({ col, row }));
   }
 
   /** The free walkable tile closest to `home` (the lead's seat) for helper
    *  `ch`: not `home` itself, and not one another character stands on or is
    *  walking to. */
-  private helperSpot(
-    ch: Character,
-    home: { col: number; row: number },
-  ): { col: number; row: number } | null {
-    const taken = new Set<string>([`${home.col},${home.row}`]);
-    for (const other of this.characters.values()) {
-      if (other.id === ch.id) continue;
-      taken.add(`${other.tileCol},${other.tileRow}`);
-      const end = other.path[other.path.length - 1];
-      if (end) taken.add(`${end.col},${end.row}`);
-    }
-    return this.closestAround(home, taken);
-  }
-
-  /** The walkable tile not in `taken` closest to `home`, rings first: the 8
-   *  tiles around it before any 2 away, so helpers surround their lead instead
-   *  of lining up beside it (a diagonal neighbour and a tile 2 straight away
-   *  are equally far in steps). */
-  private closestAround(
-    home: { col: number; row: number },
-    taken: Set<string>,
-  ): { col: number; row: number } | null {
-    let best: { col: number; row: number } | null = null;
-    let bestScore = Infinity;
-    for (const tile of this.walkableTiles) {
-      if (taken.has(`${tile.col},${tile.row}`)) continue;
-      const dc = Math.abs(tile.col - home.col);
-      const dr = Math.abs(tile.row - home.row);
-      const score = Math.max(dc, dr) * 1000 + dc + dr;
-      if (score < bestScore) {
-        best = tile;
-        bestScore = score;
-      }
-    }
-    return best;
+  private helperSpot(ch: Character, home: Tile): Tile | null {
+    return this.closestTile(
+      this.takenTiles({ except: ch.id, destinations: true, plus: home }),
+      ringsAround(home),
+    );
   }
 
   /**
@@ -775,11 +785,9 @@ export class OfficeState {
     const home = anchorTile(parentCh, this.seats) ?? { col: 0, row: 0 };
     let spawn = home;
     if (this.walkableTiles.length > 0) {
-      const occupied = new Set<string>([`${home.col},${home.row}`]);
-      for (const other of this.characters.values()) {
-        occupied.add(`${other.tileCol},${other.tileRow}`);
-      }
-      spawn = this.closestAround(home, occupied) ?? this.walkableTiles[0];
+      spawn =
+        this.closestTile(this.takenTiles({ plus: home }), ringsAround(home)) ??
+        this.walkableTiles[0];
     }
 
     const ch = createCharacter(id, palette, null, null, hueShift);
@@ -931,9 +939,8 @@ export class OfficeState {
   }
 
   /** Rebuild furniture instances with auto-state applied (a working agent's PC turns ON) */
-  private rebuildFurnitureInstances(): void {
-    const lit = this.litWorkstations();
-    this.litWorkstationsKey = [...lit].sort().join('|');
+  private rebuildFurnitureInstances(lit = this.litWorkstations()): void {
+    this.litPcs = lit;
     if (lit.size === 0) {
       this.furniture = layoutToFurnitureInstances(this.layout.furniture);
       return;
@@ -1228,8 +1235,8 @@ export class OfficeState {
     }
 
     // A PC turns on when its agent sits down to work, not when the turn starts.
-    const litKey = [...this.litWorkstations()].sort().join('|');
-    if (litKey !== this.litWorkstationsKey) this.rebuildFurnitureInstances();
+    const lit = this.litWorkstations();
+    if (!sameSet(lit, this.litPcs)) this.rebuildFurnitureInstances(lit);
 
     // ── Pet FSM ────────────────────────────────────────────────
     for (const pet of this.pets) {
