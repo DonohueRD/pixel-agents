@@ -47,11 +47,9 @@ async function main(): Promise<void> {
 
   // Multi-server fan-out (D4): deliver to every live server in the registry,
   // or the single legacy server.json when the registry has no live entries.
-  const servers = liveServers(hookDebug);
-  if (servers === null) {
-    hookDebug(`exit event=${eventName} sid=${sid}`);
-    process.exit(0);
-  }
+  const label = `event=${eventName} sid=${sid}`;
+  const servers = liveServers(hookDebug, label);
+  if (servers === null) process.exit(0);
 
   // Adopt the first live server's debug-log path if the env var didn't reach
   // us (diagnostic-only; harmless if more than one server has it set).
@@ -66,7 +64,7 @@ async function main(): Promise<void> {
       postToServer(server, {
         path: `${HOOK_API_PREFIX}/claude`,
         body,
-        label: `event=${eventName} sid=${sid}`,
+        label,
         debug: hookDebug,
         timeoutMs: HOOK_POST_TIMEOUT_MS,
       }),

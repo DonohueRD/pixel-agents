@@ -90,7 +90,7 @@ function runWrapped(command: string, input: string): Promise<number> {
 
 /** POST the rate limits to every live server; never rejects. */
 async function report(payload: Record<string, unknown>): Promise<void> {
-  const servers = liveServers(noDebug);
+  const servers = liveServers(noDebug, 'usage');
   if (!servers) return;
   const body = JSON.stringify(payload);
   await Promise.all(

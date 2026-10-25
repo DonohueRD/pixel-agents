@@ -77,9 +77,10 @@ export function readRegistry(debug: ScriptDebug): ServerConfig[] {
 /**
  * The servers to deliver to: every live registry entry, else the legacy
  * server.json (forward-compat with a server that predates the registry), else
- * none — `null` with the reason logged.
+ * none — `null`, logged as ONE exit line naming `label` (what was being
+ * delivered) and why.
  */
-export function liveServers(debug: ScriptDebug): ServerTarget[] | null {
+export function liveServers(debug: ScriptDebug, label: string): ServerTarget[] | null {
   const servers: ServerTarget[] = readRegistry(debug);
   if (servers.length > 0) return servers;
   try {
@@ -90,7 +91,7 @@ export function liveServers(debug: ScriptDebug): ServerTarget[] | null {
     return [legacy];
   } catch (e) {
     debug(
-      `reason=no-server-json path=${SERVER_JSON} err=${e instanceof Error ? e.message : String(e)}`,
+      `exit reason=no-server-json ${label} path=${SERVER_JSON} err=${e instanceof Error ? e.message : String(e)}`,
     );
     return null;
   }
