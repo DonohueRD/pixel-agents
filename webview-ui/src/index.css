@@ -44,6 +44,11 @@
   --color-status-active: #3794ff;
   /* The 5-hour usage bar at half or less (blue → this purple → red). */
   --color-usage-five-hour-warn: #9a4ce8;
+  /* The loading screen's desk and monitor (LoadingScene.tsx). */
+  --color-loading-desk: #b0804c;
+  --color-loading-desk-top: #d4a46a;
+  --color-loading-desk-edge: #7a5230;
+  --color-loading-screen: #5ab4ff;
   --color-status-success: #89d185;
   --color-status-error: var(--color-danger);
 
@@ -693,4 +698,26 @@
   animation-name: usage-heart-beat;
   animation-timing-function: step-end;
   animation-iteration-count: infinite;
+}
+
+/* The loading screen's desks (LoadingScene.tsx), in sprite pixels (--px):
+   a wooden top in front of the seated character, and a monitor beside it. */
+.loading-desk {
+  position: absolute;
+  left: calc(var(--px) * -4);
+  right: calc(var(--px) * -4);
+  bottom: 0;
+  height: calc(var(--px) * 4);
+  background: var(--color-loading-desk);
+  border-top: var(--px) solid var(--color-loading-desk-top);
+  border-bottom: calc(var(--px) * 2) solid var(--color-loading-desk-edge);
+}
+.loading-monitor {
+  position: absolute;
+  right: calc(var(--px) * -4);
+  bottom: calc(var(--px) * 7);
+  width: calc(var(--px) * 7);
+  height: calc(var(--px) * 6);
+  background: var(--color-loading-screen);
+  border: var(--px) solid var(--color-shadow);
 }
