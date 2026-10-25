@@ -6,13 +6,7 @@
  * hue-turned whole.
  */
 
-import { rgbaToHex } from '../../../core/src/assets/colorUtils.js';
-import {
-  CHAR_FRAME_H,
-  CHAR_FRAME_W,
-  CHAR_FRAMES_PER_ROW,
-  CHARACTER_DIRECTIONS,
-} from '../../../core/src/assets/constants.js';
+import { sheetToDirectionSprites } from '../../../core/src/assets/characterSheet.js';
 import type { CharacterDirectionSprites } from '../../../core/src/assets/types.js';
 import { CAST_OFFICE_SYNC_MS } from '../constants.js';
 import { adjustSprite } from '../office/colorize.js';
@@ -23,22 +17,7 @@ import { SHEET_W } from './sheet.js';
 
 /** A composed 128x96 character sheet as the office's per-direction frame sprites. */
 export function sheetToOfficeSprites(sheet: Uint8ClampedArray): CharacterDirectionSprites {
-  const sprites: CharacterDirectionSprites = { down: [], up: [], right: [] };
-  CHARACTER_DIRECTIONS.forEach((dir, row) => {
-    for (let f = 0; f < CHAR_FRAMES_PER_ROW; f++) {
-      const frame: string[][] = [];
-      for (let y = 0; y < CHAR_FRAME_H; y++) {
-        const line: string[] = [];
-        for (let x = 0; x < CHAR_FRAME_W; x++) {
-          const i = ((row * CHAR_FRAME_H + y) * SHEET_W + f * CHAR_FRAME_W + x) * 4;
-          line.push(rgbaToHex(sheet[i], sheet[i + 1], sheet[i + 2], sheet[i + 3]));
-        }
-        frame.push(line);
-      }
-      sprites[dir].push(frame);
-    }
-  });
-  return sprites;
+  return sheetToDirectionSprites(sheet, SHEET_W);
 }
 
 interface CastSource {

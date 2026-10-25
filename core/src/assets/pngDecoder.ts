@@ -7,15 +7,12 @@
 
 import { PNG } from 'pngjs';
 
+import { currentSheetPixels, sheetToDirectionSprites } from './characterSheet.js';
 import { rgbaToHex } from './colorUtils.js';
 import {
   CARPET_GRID_COLS,
   CARPET_MARCHING_SQUARES_COUNT,
   CARPET_TILE_SIZE,
-  CHAR_FRAME_H,
-  CHAR_FRAME_W,
-  CHAR_FRAMES_PER_ROW,
-  CHARACTER_DIRECTIONS,
   FLOOR_TILE_SIZE,
   PET_FRAME_H,
   PET_FRAME_W_LARGE,
@@ -30,7 +27,6 @@ import {
   WALL_PIECE_HEIGHT,
   WALL_PIECE_WIDTH,
 } from './constants.js';
-import { LEGACY_SHEET_W, widenLegacySheet } from './seatedFrame.js';
 import type { CharacterDirectionSprites, PetSpriteFrames } from './types.js';
 
 // ── Sprite decoding ──────────────────────────────────────────
@@ -168,33 +164,8 @@ export function parseCarpetPng(pngBuffer: Buffer): string[][][] {
  */
 export function decodeCharacterPng(pngBuffer: Buffer): CharacterDirectionSprites {
   const png = PNG.sync.read(sanitizePngBuffer(pngBuffer));
-  const legacy = png.width === LEGACY_SHEET_W;
-  const width = legacy ? CHAR_FRAME_W * CHAR_FRAMES_PER_ROW : png.width;
-  const data = legacy ? widenLegacySheet(png.data) : png.data;
-  const charData: CharacterDirectionSprites = { down: [], up: [], right: [] };
-
-  for (let dirIdx = 0; dirIdx < CHARACTER_DIRECTIONS.length; dirIdx++) {
-    const dir = CHARACTER_DIRECTIONS[dirIdx];
-    const rowOffsetY = dirIdx * CHAR_FRAME_H;
-    const frames: string[][][] = [];
-
-    for (let f = 0; f < CHAR_FRAMES_PER_ROW; f++) {
-      const sprite: string[][] = [];
-      const frameOffsetX = f * CHAR_FRAME_W;
-      for (let y = 0; y < CHAR_FRAME_H; y++) {
-        const row: string[] = [];
-        for (let x = 0; x < CHAR_FRAME_W; x++) {
-          const idx = ((rowOffsetY + y) * width + (frameOffsetX + x)) * 4;
-          row.push(rgbaToHex(data[idx], data[idx + 1], data[idx + 2], data[idx + 3]));
-        }
-        sprite.push(row);
-      }
-      frames.push(sprite);
-    }
-    charData[dir] = frames;
-  }
-
-  return charData;
+  const { width, data } = currentSheetPixels(png.width, png.data);
+  return sheetToDirectionSprites(data, width);
 }
 
 /**
