@@ -1,3 +1,6 @@
+import type { PixelIconName } from '../../components/ui/pixelIcons.js';
+import { pixelIconGrid } from '../../components/ui/pixelIcons.js';
+import { devicePixelsPerArtPixel } from '../../components/ui/pixelSnap.js';
 import type { ColorValue } from '../../components/ui/types.js';
 import {
   AREA_ACTIVE_ALPHA_MULTIPLIER,
@@ -10,16 +13,13 @@ import {
   AREA_OVERLAY_ALPHA,
   BUBBLE_FADE_DURATION_SEC,
   BUTTON_ICON_COLOR,
-  BUTTON_ICON_SIZE_FACTOR,
-  BUTTON_LINE_WIDTH_MIN,
-  BUTTON_LINE_WIDTH_ZOOM_FACTOR,
-  BUTTON_MIN_RADIUS,
-  BUTTON_RADIUS_ZOOM_FACTOR,
+  BUTTON_SHADOW_COLOR,
   CARPET_DEFAULT_ACCENT_COLOR,
   CARPET_DEFAULT_COLOR,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
   DELETE_BUTTON_BG,
+  DELETE_BUTTON_HOVER_BG,
   FALLBACK_FLOOR_COLOR,
   GHOST_BORDER_HOVER_FILL,
   GHOST_BORDER_HOVER_STROKE,
@@ -33,15 +33,21 @@ import {
   HOVERED_OUTLINE_ALPHA,
   OUTLINE_Z_SORT_OFFSET,
   ROTATE_BUTTON_BG,
+  ROTATE_BUTTON_HOVER_BG,
   SEAT_AVAILABLE_COLOR,
   SEAT_BUSY_COLOR,
   SEAT_OWN_COLOR,
   SELECTED_OUTLINE_ALPHA,
+  SELECTION_BUTTON_GAP_PX,
+  SELECTION_BUTTON_ICON_SCALE,
+  SELECTION_BUTTON_PADDING_PX,
+  SELECTION_BUTTON_SHADOW_PX,
   SELECTION_DASH_PATTERN,
   SELECTION_HIGHLIGHT_COLOR,
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
 } from '../../constants.js';
+import type { SelectionButton } from '../editor/editorState.js';
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js';
 import { mapOffset } from '../projection.js';
 import {
@@ -669,91 +675,125 @@ export function renderSelectionHighlight(
   ctx.restore();
 }
 
-/** @internal */
-export function renderDeleteButton(
+/** The selected item's buttons' geometry, in device pixels. */
+function selectionButtonMetrics(icon: PixelIconName) {
+  const dpr = window.devicePixelRatio || 1;
+  const unit = devicePixelsPerArtPixel(SELECTION_BUTTON_ICON_SCALE, dpr);
+  const pad = Math.round(SELECTION_BUTTON_PADDING_PX * dpr);
+  const grid = pixelIconGrid(icon);
+  return {
+    grid,
+    unit,
+    pad,
+    size: grid.length * unit + pad * 2,
+    shadow: Math.max(1, Math.round(SELECTION_BUTTON_SHADOW_PX * dpr)),
+    gap: Math.round(SELECTION_BUTTON_GAP_PX * dpr),
+  };
+}
+
+/**
+ * One of the selected item's buttons, drawn like the app's own: a square in a
+ * solid brand colour with a hard shadow and an 8×8 pixel icon in white, every
+ * edge on a whole device pixel, its top-left at (x, y). Hovered it lights up
+ * (the brighter colour); pressed it also sinks into its shadow, which halves,
+ * as a pressed toolbar button does. The icon is centred by its lit pixels, not
+ * its 8×8 box (the × only fills 5×5 of it). Sized in screen pixels, not by
+ * zoom, so it stays the toolbar icons' size.
+ */
+function renderSelectionButton(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  colors: { idle: string; lit: string },
+  icon: PixelIconName,
+  state: 'idle' | 'hover' | 'pressed',
+): ButtonBounds {
+  const { grid, unit, size, shadow } = selectionButtonMetrics(icon);
+  x = Math.round(x);
+  y = Math.round(y);
+  const bounds = { cx: x + size / 2, cy: y + size / 2, radius: size / 2 };
+  const sink = state === 'pressed' ? Math.ceil(shadow / 2) : 0;
+  x += sink;
+  y += sink;
+
+  // The lit pixels' box, to centre the glyph rather than its grid.
+  let minX = Infinity;
+  let maxX = -1;
+  let minY = Infinity;
+  let maxY = -1;
+  grid.forEach((row, iy) => {
+    for (let ix = 0; ix < row.length; ix++) {
+      if (row[ix] !== '#') continue;
+      minX = Math.min(minX, ix);
+      maxX = Math.max(maxX, ix);
+      minY = Math.min(minY, iy);
+      maxY = Math.max(maxY, iy);
+    }
+  });
+  const left = x + Math.round((size - (maxX - minX + 1) * unit) / 2) - minX * unit;
+  const top = y + Math.round((size - (maxY - minY + 1) * unit) / 2) - minY * unit;
+
+  ctx.save();
+  ctx.fillStyle = BUTTON_SHADOW_COLOR;
+  ctx.fillRect(x + shadow - sink, y + shadow - sink, size, size);
+  ctx.fillStyle = state === 'idle' ? colors.idle : colors.lit;
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = BUTTON_ICON_COLOR;
+  grid.forEach((row, iy) => {
+    for (let ix = 0; ix < row.length; ix++) {
+      if (row[ix] === '#') ctx.fillRect(left + ix * unit, top + iy * unit, unit, unit);
+    }
+  });
+  ctx.restore();
+  // Hit-tested where it rests, so sinking never moves it out from under the pointer.
+  return bounds;
+}
+
+/**
+ * The selected item's buttons, in a row just above it (never over it),
+ * flush with its right edge: rotate (when it rotates), then delete. An item
+ * at the top of the screen gets them just below it instead, and the row is
+ * kept inside the canvas's left edge.
+ */
+function renderSelectionButtons(
   ctx: CanvasRenderingContext2D,
   col: number,
   row: number,
   w: number,
-  _h: number,
+  h: number,
   offsetX: number,
   offsetY: number,
   zoom: number,
-): DeleteButtonBounds {
+  rotatable: boolean,
+  hovered: SelectionButton | null,
+  pressed: SelectionButton | null,
+): { deleteButton: DeleteButtonBounds; rotateButton: RotateButtonBounds | null } {
+  const stateOf = (b: SelectionButton) =>
+    pressed === b ? 'pressed' : hovered === b && pressed === null ? 'hover' : 'idle';
   const s = TILE_SIZE * zoom;
-  // Position at top-right corner of selected furniture
-  const cx = offsetX + (col + w) * s + 1;
-  const cy = offsetY + row * s - 1;
-  const radius = Math.max(BUTTON_MIN_RADIUS, zoom * BUTTON_RADIUS_ZOOM_FACTOR);
-
-  // Circle background
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = DELETE_BUTTON_BG;
-  ctx.fill();
-
-  // X mark
-  ctx.strokeStyle = BUTTON_ICON_COLOR;
-  ctx.lineWidth = Math.max(BUTTON_LINE_WIDTH_MIN, zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR);
-  ctx.lineCap = 'round';
-  const xSize = radius * BUTTON_ICON_SIZE_FACTOR;
-  ctx.beginPath();
-  ctx.moveTo(cx - xSize, cy - xSize);
-  ctx.lineTo(cx + xSize, cy + xSize);
-  ctx.moveTo(cx + xSize, cy - xSize);
-  ctx.lineTo(cx - xSize, cy + xSize);
-  ctx.stroke();
-  ctx.restore();
-
-  return { cx, cy, radius };
-}
-
-function renderRotateButton(
-  ctx: CanvasRenderingContext2D,
-  col: number,
-  row: number,
-  _w: number,
-  _h: number,
-  offsetX: number,
-  offsetY: number,
-  zoom: number,
-): RotateButtonBounds {
-  const s = TILE_SIZE * zoom;
-  // Position to the left of the delete button (which is at top-right corner)
-  const radius = Math.max(BUTTON_MIN_RADIUS, zoom * BUTTON_RADIUS_ZOOM_FACTOR);
-  const cx = offsetX + col * s - 1;
-  const cy = offsetY + row * s - 1;
-
-  // Circle background
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = ROTATE_BUTTON_BG;
-  ctx.fill();
-
-  // Circular arrow icon
-  ctx.strokeStyle = BUTTON_ICON_COLOR;
-  ctx.lineWidth = Math.max(BUTTON_LINE_WIDTH_MIN, zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR);
-  ctx.lineCap = 'round';
-  const arcR = radius * BUTTON_ICON_SIZE_FACTOR;
-  ctx.beginPath();
-  // Draw a 270-degree arc
-  ctx.arc(cx, cy, arcR, -Math.PI * 0.8, Math.PI * 0.7);
-  ctx.stroke();
-  // Draw arrowhead at the end of the arc
-  const endAngle = Math.PI * 0.7;
-  const endX = cx + arcR * Math.cos(endAngle);
-  const endY = cy + arcR * Math.sin(endAngle);
-  const arrowSize = radius * 0.35;
-  ctx.beginPath();
-  ctx.moveTo(endX + arrowSize * 0.6, endY - arrowSize * 0.3);
-  ctx.lineTo(endX, endY);
-  ctx.lineTo(endX + arrowSize * 0.7, endY + arrowSize * 0.5);
-  ctx.stroke();
-  ctx.restore();
-
-  return { cx, cy, radius };
+  const { size, gap } = selectionButtonMetrics('close');
+  const above = offsetY + row * s - gap - size;
+  const y = above >= gap ? above : offsetY + (row + h) * s + gap;
+  const right = Math.max(offsetX + (col + w) * s, (rotatable ? size * 2 + gap : size) + gap);
+  const deleteButton = renderSelectionButton(
+    ctx,
+    right - size,
+    y,
+    { idle: DELETE_BUTTON_BG, lit: DELETE_BUTTON_HOVER_BG },
+    'close',
+    stateOf('delete'),
+  );
+  const rotateButton = rotatable
+    ? renderSelectionButton(
+        ctx,
+        right - size * 2 - gap,
+        y,
+        { idle: ROTATE_BUTTON_BG, lit: ROTATE_BUTTON_HOVER_BG },
+        'reset',
+        stateOf('rotate'),
+      )
+    : null;
+  return { deleteButton, rotateButton };
 }
 
 // ── Speech bubbles ──────────────────────────────────────────────
@@ -799,7 +839,7 @@ export interface ButtonBounds {
   cx: number;
   /** Center Y in device pixels */
   cy: number;
-  /** Radius in device pixels */
+  /** Half its side in device pixels (the buttons are square) */
   radius: number;
 }
 
@@ -829,10 +869,13 @@ export interface EditorRenderState {
   selectedH: number;
   hasSelection: boolean;
   isRotatable: boolean;
-  /** Updated each frame by renderDeleteButton */
+  /** Updated each frame by renderSelectionButtons */
   deleteButtonBounds: DeleteButtonBounds | null;
-  /** Updated each frame by renderRotateButton */
+  /** Updated each frame by renderSelectionButtons */
   rotateButtonBounds: RotateButtonBounds | null;
+  /** The button under the pointer, and the one held down (drawn lit / sunk). */
+  hoveredButton: SelectionButton | null;
+  pressedButton: SelectionButton | null;
   /** Whether to show ghost border (expansion tiles outside grid) */
   showGhostBorder: boolean;
   /** Hovered ghost border tile col (-1 to cols) */
@@ -980,7 +1023,7 @@ export function renderFrame(
         offsetY,
         zoom,
       );
-      editor.deleteButtonBounds = renderDeleteButton(
+      const buttons = renderSelectionButtons(
         ctx,
         editor.selectedCol,
         editor.selectedRow,
@@ -989,21 +1032,12 @@ export function renderFrame(
         offsetX,
         offsetY,
         zoom,
+        editor.isRotatable,
+        editor.hoveredButton,
+        editor.pressedButton,
       );
-      if (editor.isRotatable) {
-        editor.rotateButtonBounds = renderRotateButton(
-          ctx,
-          editor.selectedCol,
-          editor.selectedRow,
-          editor.selectedW,
-          editor.selectedH,
-          offsetX,
-          offsetY,
-          zoom,
-        );
-      } else {
-        editor.rotateButtonBounds = null;
-      }
+      editor.deleteButtonBounds = buttons.deleteButton;
+      editor.rotateButtonBounds = buttons.rotateButton;
     } else {
       editor.deleteButtonBounds = null;
       editor.rotateButtonBounds = null;
