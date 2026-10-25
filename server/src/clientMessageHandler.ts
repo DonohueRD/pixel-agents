@@ -9,6 +9,7 @@ import { cardOrderMessage, saveCardOrder } from './cardOrder.js';
 import {
   characterProfilesLoadedMessage,
   handleCharacterProfilesClientMessage,
+  refusedSaveAnswer,
 } from './characterProfilesPersistence.js';
 import {
   getHooksConsent,
@@ -770,7 +771,7 @@ function refuseReadOnly(
       return;
     case 'saveCharacterProfiles':
       // Answered like any refused save, so the editor drops the edit instead of keeping it.
-      send(characterProfilesLoadedMessage(typeof msg.saveId === 'string' ? msg.saveId : undefined));
+      send(refusedSaveAnswer(msg));
       return;
   }
 }

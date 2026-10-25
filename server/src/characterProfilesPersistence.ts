@@ -1,23 +1,21 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-
 import {
   type CharacterProfile,
   characterRemap,
   parseCharacterProfiles,
 } from '../../core/src/characterProfiles.js';
-import { DEFAULT_CHARACTER_PROFILES } from '../../core/src/defaultCharacterProfiles.js';
 import type { AgentLook, CharacterProfilesLoaded } from '../../core/src/messages.js';
 import { parseWardrobeItems, type WardrobeItem } from '../../core/src/wardrobeItems.js';
 import type { AgentStateStore } from './agentStateStore.js';
-import { type PaletteRemap, remapAgentLooks } from './characterRemap.js';
 import {
-  CHARACTER_PROFILES_FILE_NAME,
-  PIXEL_AGENTS_DIR,
-  WARDROBE_ITEMS_FILE_NAME,
-} from './constants.js';
+  characterProfilesFile,
+  getCharacterProfiles,
+  getWardrobeItems,
+  wardrobeItemsFile,
+} from './characterProfilesStore.js';
+import { type PaletteRemap, remapAgentLooks } from './characterRemap.js';
 import { type JsonFileWatcher, watchJsonFile, writeJsonAtomic } from './jsonFileWatcher.js';
+
+export { getCharacterProfiles, getWardrobeItems };
 
 /**
  * ~/.pixel-agents/characters.json: the character profiles agents are drawn from, shared by
@@ -26,64 +24,11 @@ import { type JsonFileWatcher, watchJsonFile, writeJsonAtomic } from './jsonFile
  * editor) the profiles may wear. Absent means none. The two travel together: one save
  * message, one loaded message.
  *
- * This module is the one owner of both for both surfaces: it caches them (the palette
- * count reads the cache), persists saves, answers the client messages, and watches the
- * files for changes another process makes. Surfaces supply only their channels.
+ * This module is the one owner of both for both surfaces: it persists saves, answers the
+ * client messages, and watches the files for changes another process makes. The cache
+ * itself (the palette count reads it) is characterProfilesStore.ts. Surfaces supply only
+ * their channels.
  */
-function getCharacterProfilesPath(): string {
-  return path.join(os.homedir(), PIXEL_AGENTS_DIR, CHARACTER_PROFILES_FILE_NAME);
-}
-
-function getWardrobeItemsPath(): string {
-  return path.join(os.homedir(), PIXEL_AGENTS_DIR, WARDROBE_ITEMS_FILE_NAME);
-}
-
-/** The list for one file path. Keyed by path so a different $HOME (tests) re-reads. */
-let cache: { filePath: string; profiles: CharacterProfile[] } | null = null;
-let itemsCache: { filePath: string; items: WardrobeItem[] } | null = null;
-
-function readFromDisk(filePath: string): CharacterProfile[] {
-  try {
-    if (fs.existsSync(filePath)) {
-      const profiles = parseCharacterProfiles(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
-      if (profiles) return profiles;
-      console.warn('[Pixel Agents] Ignoring malformed characters.json');
-    }
-  } catch (err) {
-    console.error('[Pixel Agents] Failed to read character profiles:', err);
-  }
-  return structuredClone([...DEFAULT_CHARACTER_PROFILES]);
-}
-
-function readItemsFromDisk(filePath: string): WardrobeItem[] {
-  try {
-    if (fs.existsSync(filePath)) {
-      const items = parseWardrobeItems(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
-      if (items) return items;
-      console.warn('[Pixel Agents] Ignoring malformed wardrobe-items.json');
-    }
-  } catch (err) {
-    console.error('[Pixel Agents] Failed to read wardrobe items:', err);
-  }
-  return [];
-}
-
-/** The saved profiles, or the defaults. Read from disk once, then served from the cache. */
-export function getCharacterProfiles(): CharacterProfile[] {
-  const filePath = getCharacterProfilesPath();
-  if (cache?.filePath !== filePath) cache = { filePath, profiles: readFromDisk(filePath) };
-  return cache.profiles;
-}
-
-/** The saved custom wardrobe items (none when absent). Read once, then served from the cache. */
-export function getWardrobeItems(): WardrobeItem[] {
-  const filePath = getWardrobeItemsPath();
-  if (itemsCache?.filePath !== filePath) {
-    itemsCache = { filePath, items: readItemsFromDisk(filePath) };
-  }
-  return itemsCache.items;
-}
-
 /**
  * Validate and persist a client's profiles, and its items when it sent some (atomic tmp +
  * rename each; the items first, so the profiles never land wearing items that didn't).
@@ -102,13 +47,13 @@ function saveCharacterProfiles(
   if (!items) return null;
   try {
     if (itemsValue !== undefined) {
-      const itemsPath = getWardrobeItemsPath();
+      const itemsPath = wardrobeItemsFile.path();
       writeJsonAtomic(itemsPath, items);
-      itemsCache = { filePath: itemsPath, items };
+      wardrobeItemsFile.set(items, itemsPath);
     }
-    const filePath = getCharacterProfilesPath();
+    const filePath = characterProfilesFile.path();
     writeJsonAtomic(filePath, profiles);
-    cache = { filePath, profiles };
+    characterProfilesFile.set(profiles, filePath);
   } catch (err) {
     console.error('[Pixel Agents] Failed to write character profiles:', err);
     return null;
@@ -139,6 +84,18 @@ export function characterProfilesLoadedMessage(
 
 type ProfilesMessage = ReturnType<typeof characterProfilesLoadedMessage>;
 
+/** A save's id. Required by the protocol, but tolerated when missing so an older client
+ *  still saves. */
+function saveIdOf(msg: { saveId?: unknown }): string | undefined {
+  return typeof msg.saveId === 'string' ? msg.saveId : undefined;
+}
+
+/** The answer to a refused `saveCharacterProfiles` (here, or by a host's read-only gate):
+ *  the list still on disk, carrying the save's id. */
+export function refusedSaveAnswer(msg: { saveId?: unknown }): ProfilesMessage {
+  return characterProfilesLoadedMessage(saveIdOf(msg));
+}
+
 /** What a host must supply to dispatch the character-profile client messages. */
 export interface CharacterProfilesMessageDeps {
   /** Fan a saved list out to every connected office. */
@@ -165,14 +122,13 @@ export function handleCharacterProfilesClientMessage(
   msg: { profiles?: unknown; items?: unknown; saveId?: unknown },
   deps: CharacterProfilesMessageDeps,
 ): void {
-  // Unvalidated off the wire: the profiles and items are parsed here, and the saveId
-  // (required by the protocol) is tolerated when missing so an older client still saves.
-  const saveId = typeof msg.saveId === 'string' ? msg.saveId : undefined;
+  // Unvalidated off the wire: the profiles and items are parsed here.
   const saved = saveCharacterProfiles(msg.profiles, msg.items);
   if (!saved) {
-    deps.reply(characterProfilesLoadedMessage(saveId));
+    deps.reply(refusedSaveAnswer(msg));
     return;
   }
+  const saveId = saveIdOf(msg);
   const looks = saved.remap ? remapAgentLooks(deps.store, saved.remap) : [];
   deps.broadcast(characterProfilesLoadedMessage(saveId, saved.profiles, saved.items, looks));
 }
@@ -188,7 +144,7 @@ export function watchCharacterProfiles(
   broadcast: (message: ProfilesMessage) => void,
   store: AgentStateStore,
 ): JsonFileWatcher {
-  const filePath = getCharacterProfilesPath();
+  const filePath = characterProfilesFile.path();
   const profilesWatcher = watchJsonFile(filePath, 'character profiles', (value) => {
     const profiles = parseCharacterProfiles(value);
     if (!profiles) {
@@ -196,18 +152,18 @@ export function watchCharacterProfiles(
       return;
     }
     const remap = characterRemap(getCharacterProfiles(), profiles);
-    cache = { filePath, profiles };
+    characterProfilesFile.set(profiles, filePath);
     const looks = remap ? remapAgentLooks(store, remap) : [];
     broadcast(characterProfilesLoadedMessage(undefined, profiles, undefined, looks));
   });
-  const itemsPath = getWardrobeItemsPath();
+  const itemsPath = wardrobeItemsFile.path();
   const itemsWatcher = watchJsonFile(itemsPath, 'wardrobe items', (value) => {
     const items = parseWardrobeItems(value);
     if (!items) {
       console.warn('[Pixel Agents] Ignoring malformed wardrobe-items.json change');
       return;
     }
-    itemsCache = { filePath: itemsPath, items };
+    wardrobeItemsFile.set(items, itemsPath);
     broadcast(characterProfilesLoadedMessage(undefined, undefined, items));
   });
   return {

@@ -7,12 +7,12 @@
 
 import { chooseLook } from '../../core/src/paletteUtils.js';
 import type { AgentStateStore } from './agentStateStore.js';
-import { getCharacterProfiles } from './characterProfilesPersistence.js';
+import { getCharacterProfiles } from './characterProfilesStore.js';
 import type { AgentState } from './types.js';
 
 /**
  * Palettes are the character profiles (characters.json, owned by
- * characterProfilesPersistence) followed by any char_N.png sprites from external asset
+ * characterProfilesStore) followed by any char_N.png sprites from external asset
  * directories, so the count moves when either changes. The external count mirrors the
  * setHookProvider / setTeamSwitch module-level setter pattern in transcriptParser.ts.
  */
