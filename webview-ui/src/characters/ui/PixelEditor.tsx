@@ -14,7 +14,6 @@ import {
   CHARACTER_PAINT_FALLBACK,
 } from '../../constants.js';
 import { type BoxSize, useBoxSize } from '../../hooks/useBoxSize.js';
-import { castStore } from '../castStore.js';
 import { rgbHex } from '../color.js';
 import { pieceName } from '../items.js';
 import { clearFrameEdits, clearPieceEdits, hasEdits, paintPixel } from '../profiles.js';
@@ -262,9 +261,9 @@ export function PixelEditor() {
   };
   const paint = (points: [number, number][]) => {
     const value = ed.tool === 'pencil' ? color : ed.tool === 'eraser' ? null : undefined;
-    castStore.update((p) => {
+    studio.edit((p) => {
       for (const [x, y] of points) paintPixel(p, ed.pix, ed.frame, y * FRAME_W + x, value);
-    }, ed.frame);
+    });
   };
   const pickColour = ([x, y]: [number, number]) => {
     const base = renderer.layerBase(profile, layerOf(ed.pix))?.data;
@@ -461,16 +460,14 @@ export function PixelEditor() {
               label={phone ? 'Clear frame' : 'Clear this frame'}
               confirmLabel={phone ? 'Tap again' : 'Click again to confirm'}
               disabled={!frameEdited}
-              onConfirm={() =>
-                castStore.update((p) => clearFrameEdits(p, ed.pix, ed.frame), ed.frame)
-              }
+              onConfirm={() => studio.edit((p) => clearFrameEdits(p, ed.pix, ed.frame))}
             />
             <ArmedButton
               className="chv-tool"
               label={phone ? 'Clear piece' : 'Clear all edits to this piece'}
               confirmLabel={phone ? 'Tap again' : 'Click again to confirm'}
               disabled={!pieceEdited}
-              onConfirm={() => castStore.update((p) => clearPieceEdits(p, ed.pix), ed.frame)}
+              onConfirm={() => studio.edit((p) => clearPieceEdits(p, ed.pix))}
             />
           </div>
           <p className="chv-note">

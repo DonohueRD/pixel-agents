@@ -56,10 +56,13 @@ export const ZERO_COLOR: CharacterColor = { h: 0, s: 0, b: 0, c: 0 };
 export const isAsDrawn = (cv: CharacterColor | null | undefined): boolean =>
   !!cv && !cv.palette && !cv.colorize && !cv.h && !cv.s && !cv.b && !cv.c;
 
+/** A hue in degrees brought into [0, 360). */
+export const wrapHue = (h: number): number => ((h % 360) + 360) % 360;
+
 /** The same colour in colorize mode (exact on gray art, where adjust and colorize agree). */
 export const toColorize = (cv: CharacterColor): CharacterColor => ({
   ...cv,
-  h: ((cv.h % 360) + 360) % 360,
+  h: wrapHue(cv.h),
   s: Math.max(0, cv.s),
   colorize: true,
 });
@@ -106,7 +109,7 @@ export function tintPixels(
       l = lum(r0, g0, b0);
     } else {
       const [oh, os, ol] = rgbToHslDegrees(r0, g0, b0);
-      h = ((((oh + cv.h) % 360) + 360) % 360) / 360;
+      h = wrapHue(oh + cv.h) / 360;
       s = Math.max(0, Math.min(1, os + cv.s / 100));
       l = ol;
     }

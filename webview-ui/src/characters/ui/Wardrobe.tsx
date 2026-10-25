@@ -5,7 +5,7 @@
 
 import { useDeferredValue, useLayoutEffect, useRef } from 'react';
 
-import { type CharacterProfile, pixId } from '../../../../core/src/characterProfiles.js';
+import type { CharacterProfile } from '../../../../core/src/characterProfiles.js';
 import { offeredParts } from '../items.js';
 import { setPart, setUnderwear, tabSummary } from '../profiles.js';
 import { ACCESSORIES, EYE_SHAPES, eyeShape, type SlotKey, TABS, underOf } from '../slots.js';
@@ -134,7 +134,7 @@ function Accessories() {
     for (const part of shownParts) {
       const on = acc.styles ? !!profile[acc.key] : profile[acc.key] === part.id;
       cards.push({
-        key: pixId(acc.key, part.id),
+        key: `${acc.key}:${part.id}`,
         label: parts.length > 1 && !acc.styles ? part.label : acc.label,
         pressed: on,
         wear: (p) => setPart(p, acc.key, part.id),

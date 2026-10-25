@@ -132,9 +132,13 @@ export function decodeWardrobe(
   return w;
 }
 
+/** A part of a category by id (built-in or custom), if the wardrobe has it. */
+export const partInfo = (w: Wardrobe, cat: string, id: string | undefined): PartInfo | undefined =>
+  w.manifest.parts[cat]?.find((p) => p.id === id);
+
 /** A part's label, or 'None'. */
 export function partLabel(w: Wardrobe, cat: string, id: string | undefined): string {
-  return w.manifest.parts[cat]?.find((p) => p.id === id)?.label ?? 'None';
+  return partInfo(w, cat, id)?.label ?? 'None';
 }
 
 const isPart = (v: unknown) =>

@@ -18,7 +18,7 @@ import { PixelInputText } from '../../components/ui/PixelInputText.js';
 import { PixelText } from '../../components/ui/PixelText.js';
 import { CHARACTER_HEX_INSET_PX } from '../../constants.js';
 import { SWATCHES } from '../art/artColors.js';
-import { hsl01ToRgb, isAsDrawn, toColorize, ZERO_COLOR } from '../color.js';
+import { hsl01ToRgb, isAsDrawn, toColorize, wrapHue, ZERO_COLOR } from '../color.js';
 import { offeredParts } from '../items.js';
 import { setColor, setPart } from '../profiles.js';
 import { ACCESSORIES, colorArt, type ColorKey, type ColorPicker } from '../slots.js';
@@ -91,7 +91,7 @@ function Picker({
 
   // the square: what the part's middle tone becomes at each saturation (across) and brightness (up)
   useLayoutEffect(() => {
-    const hue = (((value.h % 360) + 360) % 360) / 360;
+    const hue = wrapHue(value.h) / 360;
     paintPickCanvas(square.current, (fx, fy) => {
       const sv = valueAt('s', value, fx);
       const bv = valueAt('b', value, 1 - fy);
@@ -104,7 +104,7 @@ function Picker({
   useLayoutEffect(() => {
     paintPickCanvas(hueBar.current, (_fx, fy) => {
       const h = valueAt('h', value, fy);
-      return hsl01ToRgb((((h % 360) + 360) % 360) / 360, 1, 0.5);
+      return hsl01ToRgb(wrapHue(h) / 360, 1, 0.5);
     });
   }, [value.colorize]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -119,11 +119,8 @@ function Picker({
   const toggleColorize = () =>
     edit((p) => {
       const now = live.current;
-      const next: CharacterColor = { ...now, colorize: !now.colorize || undefined };
-      if (next.colorize) {
-        next.h = ((next.h % 360) + 360) % 360;
-        next.s = Math.max(0, next.s);
-      } else if (next.h > 180) next.h -= 360;
+      const next: CharacterColor = now.colorize ? { ...now, colorize: undefined } : toColorize(now);
+      if (!next.colorize && next.h > 180) next.h -= 360;
       setColor(p, picker.key, next);
     });
 

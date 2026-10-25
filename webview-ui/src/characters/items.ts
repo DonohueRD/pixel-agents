@@ -22,7 +22,7 @@ import { rgbHex } from './color.js';
 import type { CharacterRenderer } from './renderer.js';
 import { cellAt, FRAME_COUNT, isOpaque } from './sheet.js';
 import { editKey, layerOf, shownArt } from './slots.js';
-import type { PartInfo } from './wardrobe.js';
+import { type PartInfo, partInfo } from './wardrobe.js';
 
 /** A piece's sheet as this profile wears it, uncoloured (art plus edits); null when not worn. */
 export function pieceSheet(
@@ -76,7 +76,7 @@ export const itemPieceOf = (pix: string): ItemPiece | null => (isItemPiece(pix) 
 /** The built-in part a worn part stems from: itself, or a custom item's base. */
 export function basePartOf(r: CharacterRenderer, piece: ItemPiece, id: string): string {
   if (!isItemId(id)) return id;
-  return r.wardrobe.manifest.parts[piece]?.find((part) => part.id === id)?.base ?? id;
+  return partInfo(r.wardrobe, piece, id)?.base ?? id;
 }
 
 /** A fresh item id. */
@@ -125,7 +125,7 @@ export function pieceName(r: CharacterRenderer, p: CharacterProfile, pix: string
   const piece = itemPieceOf(pix);
   const worn = piece ? p[piece] : undefined;
   if (piece && isItemId(worn)) {
-    const label = r.wardrobe.manifest.parts[piece]?.find((part) => part.id === worn)?.label;
+    const label = partInfo(r.wardrobe, piece, worn)?.label;
     if (label) return label;
   }
   return layerOf(pix).label;

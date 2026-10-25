@@ -231,17 +231,7 @@ export function CharactersView({ phone, onClose }: CharactersViewProps) {
   // One keymap for the view: ⌘S saves, ⌘Z / ⇧⌘Z / ⌘Y undo and redo; Escape closes the pixel
   // editor, then the view; with the editor open, B/P E R I pick tools and , . ← → step
   // frames. Keys typed into a text field are left to it.
-  const keys = useRef({
-    editor,
-    closeEditor,
-    onClose: requestClose,
-    undo,
-    redo,
-    setEditor,
-    stepFrame,
-    save,
-  });
-  keys.current = {
+  const latest = {
     editor,
     closeEditor,
     onClose: requestClose,
@@ -251,6 +241,8 @@ export function CharactersView({ phone, onClose }: CharactersViewProps) {
     stepFrame,
     save,
   };
+  const keys = useRef(latest);
+  keys.current = latest;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTextEntry(e.target)) return;
