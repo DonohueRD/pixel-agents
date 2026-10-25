@@ -610,11 +610,16 @@ export class OfficeState {
       if (seat) seat.assigned = false;
       ch.seatId = null;
     }
-    if (this.selectedAgentId === id) this.selectedAgentId = null;
-    if (this.cameraFollowId === id) this.cameraFollowId = null;
+    this.forgetSelection(id);
     // Start despawn animation instead of immediate delete
     startMatrixEffect(ch, 'despawn');
     ch.bubbleType = null;
+  }
+
+  /** Stop selecting and following a character that is leaving. */
+  private forgetSelection(id: number): void {
+    if (this.selectedAgentId === id) this.selectedAgentId = null;
+    if (this.cameraFollowId === id) this.cameraFollowId = null;
   }
 
   /** Find seat uid at a given tile position, or null */
@@ -819,8 +824,7 @@ export class OfficeState {
     // Clean up tracking maps immediately so keys don't collide
     this.subagentIdMap.delete(key);
     this.subagentMeta.delete(id);
-    if (this.selectedAgentId === id) this.selectedAgentId = null;
-    if (this.cameraFollowId === id) this.cameraFollowId = null;
+    this.forgetSelection(id);
   }
 
   /**
@@ -842,8 +846,7 @@ export class OfficeState {
         if (seat) seat.assigned = false;
       }
       this.characters.delete(id);
-      if (this.selectedAgentId === id) this.selectedAgentId = null;
-      if (this.cameraFollowId === id) this.cameraFollowId = null;
+      this.forgetSelection(id);
     }
     this.subagentIdMap.clear();
     this.subagentMeta.clear();
@@ -872,8 +875,7 @@ export class OfficeState {
           ch.bubbleType = null;
         }
         this.subagentMeta.delete(id);
-        if (this.selectedAgentId === id) this.selectedAgentId = null;
-        if (this.cameraFollowId === id) this.cameraFollowId = null;
+        this.forgetSelection(id);
         toRemove.push(key);
       }
     }

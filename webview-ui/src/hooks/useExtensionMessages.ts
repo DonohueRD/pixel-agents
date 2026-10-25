@@ -21,6 +21,7 @@ import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
 import { isBrowserRuntime, isE2E } from '../runtime.js';
 import { transport } from '../transport/index.js';
+import { onReconnect } from '../transport/onReconnect.js';
 
 /**
  * A Headless agent is one the office adopted from outside (`claude -p`, a session
@@ -284,8 +285,7 @@ export function useExtensionMessages(
     // snapshot to rebuild. Live sub-agents return on the spot they left.
     let resyncPending = false;
     const resyncFromSnapshot = (os: OfficeState, incoming: number[]) => {
-      const shown = [...os.characters.values()].filter((ch) => !ch.isSubagent).map((ch) => ch.id);
-      for (const id of staleAgentIds(shown, incoming)) closeAgent(os, id);
+      for (const id of staleAgentIds(os.characters.keys(), incoming)) closeAgent(os, id);
       os.detachSubagentsForResync();
       setSubagentCharacters([]);
       setSubagentTools({});
@@ -884,18 +884,13 @@ export function useExtensionMessages(
     transport.send({ type: 'webviewReady' });
     // The first connect flushes the webviewReady queued above; every later one
     // is a reconnect and resyncs (see resyncFromSnapshot).
-    let connectedBefore = transport.state === 'connected';
-    const unsubscribeState = transport.onStateChange((state) => {
-      if (state !== 'connected') return;
-      if (connectedBefore) {
-        resyncPending = true;
-        transport.send({ type: 'webviewReady' });
-      }
-      connectedBefore = true;
+    const unsubscribeReconnect = onReconnect(transport, () => {
+      resyncPending = true;
+      transport.send({ type: 'webviewReady' });
     });
     return () => {
       unsubscribe();
-      unsubscribeState();
+      unsubscribeReconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getOfficeState]);
