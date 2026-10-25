@@ -12,6 +12,8 @@ import {
   MAX_PET_ID_LENGTH,
   PET_HIT_HALF_WIDTH,
   PET_HIT_HEIGHT,
+  SEAT_REST_MAX_SEC,
+  SEAT_REST_MIN_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { contextUsedShare } from '../contextGauge.js';
@@ -38,6 +40,7 @@ import type {
   TileType as TileTypeVal,
 } from '../types.js';
 import { CharacterState, Direction, PetState, TILE_SIZE } from '../types.js';
+import { tickBlink } from './blink.js';
 import { createCharacter, updateCharacter, updateHelper } from './characters.js';
 import { advanceMatrixEffect, startMatrixEffect } from './matrixEffectState.js';
 import { createPet, updatePet } from './petEntity.js';
@@ -908,8 +911,11 @@ export class OfficeState {
   setAgentActive(id: number, active: boolean): void {
     const ch = this.characters.get(id);
     if (ch) {
+      const turnEnded = !active && ch.isActive;
       ch.isActive = active;
-      if (!active) {
+      // Only a turn that just ended stands the agent up: one already at rest
+      // (restored, or told again on a reconnect) keeps resting.
+      if (turnEnded) {
         // Sentinel -1: signals turn just ended, skip next seat rest timer.
         // Prevents the WALK handler from setting a 2-4 min rest on arrival.
         ch.seatTimer = -1;
@@ -918,6 +924,19 @@ export class OfficeState {
       }
       this.rebuildFurnitureInstances();
     }
+  }
+
+  /** Start an agent at rest: not working, and seated for a usual rest when it has a chair
+   *  (then it gets up and wanders); without one it stands at once. */
+  restAgent(id: number): void {
+    const ch = this.characters.get(id);
+    if (!ch) return;
+    ch.isActive = false;
+    ch.seatTimer =
+      ch.seatId && ch.state === CharacterState.TYPE
+        ? SEAT_REST_MIN_SEC + Math.random() * (SEAT_REST_MAX_SEC - SEAT_REST_MIN_SEC)
+        : 0;
+    this.rebuildFurnitureInstances();
   }
 
   /**
@@ -1189,12 +1208,14 @@ export class OfficeState {
 
     // The greeter materializes and dematerializes like anyone else, but runs
     // no FSM — it stands where it spawned for as long as the ask is up.
+    if (this.greeter) tickBlink(this.greeter, dt, false);
     if (this.greeter && advanceMatrixEffect(this.greeter, dt) === 'despawned') {
       this.greeter = null;
     }
 
     const toDelete: number[] = [];
     for (const ch of this.characters.values()) {
+      tickBlink(ch, dt, ch.state === CharacterState.TYPE);
       const effect = advanceMatrixEffect(ch, dt);
       if (effect !== 'none') {
         if (effect === 'despawned') toDelete.push(ch.id);

@@ -14,6 +14,7 @@ import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import type { CastState } from './cast.js';
 import { repeatHueTurn, withRepeatClothes } from './repeatClothes.js';
 import { SHEET_W } from './sheet.js';
+import { canBlink } from './slots.js';
 
 /** A composed 128x96 character sheet as the office's per-direction frame sprites. */
 export function sheetToOfficeSprites(sheet: Uint8ClampedArray): CharacterDirectionSprites {
@@ -24,6 +25,9 @@ interface CastSource {
   subscribe: (listener: () => void) => () => void;
   getState: () => CastState;
 }
+
+/** The reading frames in a sheet row (walk1-3, type1-2, read1-2, seated). */
+const READ_FRAMES = new Set([5, 6]);
 
 /** Each sheet's office sprites, converted once (sheets are cached, immutable buffers). */
 const converted = new WeakMap<Uint8ClampedArray, CharacterDirectionSprites>();
@@ -43,6 +47,20 @@ function officeSpritesOf(sheet: Uint8ClampedArray): CharacterDirectionSprites {
   return set;
 }
 
+/** Reading frames (5, 6 of each row) from `open`, the rest from `shut`. */
+function withOpenReading(
+  shut: CharacterDirectionSprites,
+  open: CharacterDirectionSprites,
+): CharacterDirectionSprites {
+  const mix = (s: string[][][], o: string[][][]) =>
+    s.map((f, i) => (READ_FRAMES.has(i) ? o[i] : f));
+  return {
+    down: mix(shut.down, open.down),
+    up: mix(shut.up, open.up),
+    right: mix(shut.right, open.right),
+  };
+}
+
 /** An external sprite hue-turned whole for its repeat (repeatHueTurn). */
 function hueTurned(sprites: CharacterDirectionSprites, repeat: number): CharacterDirectionSprites {
   const shift = { h: repeatHueTurn(repeat), s: 0, b: 0, c: 0 };
@@ -57,10 +75,19 @@ function sync(): void {
   if (!renderer || !profiles.length) return;
   const sprites = profiles.map((p) => officeSpritesOf(renderer.sheet(p)));
   // The repeats are drawn from this same cast, so they never fall out of step.
-  setCharacterTemplates([...sprites, ...external], (palette, repeat) => {
+  setCharacterTemplates([...sprites, ...external], (palette, repeat, blink) => {
     const profile = profiles[palette];
-    if (profile) return officeSpritesOf(renderer.sheet(withRepeatClothes(profile, repeat)));
-    const sprite = external[palette - profiles.length];
+    if (profile) {
+      const worn = repeat ? withRepeatClothes(profile, repeat) : profile;
+      if (!blink) return officeSpritesOf(renderer.sheet(worn));
+      if (!canBlink(profile, false)) return null;
+      const shut = officeSpritesOf(renderer.sheet({ ...worn, blink: true }));
+      if (canBlink(profile, true)) return shut;
+      // Bare eyes keep their reading frames open: a blink there would flash the glasses.
+      return withOpenReading(shut, officeSpritesOf(renderer.sheet(worn)));
+    }
+    // External char_N.png sprites have no eyes to shut.
+    const sprite = blink ? null : external[palette - profiles.length];
     return sprite ? hueTurned(sprite, repeat) : null;
   });
   synced = true;

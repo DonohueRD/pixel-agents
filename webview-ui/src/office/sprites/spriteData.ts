@@ -1,3 +1,4 @@
+import { SEATED_FRAME } from '../../../../core/src/assets/seatedFrame.js';
 import { DEFAULT_CHARACTER_PROFILES } from '../../../../core/src/defaultCharacterProfiles.js';
 import type { Direction, SpriteData } from '../types.js';
 import { Direction as Dir } from '../types.js';
@@ -37,9 +38,16 @@ interface LoadedCharacterData {
 
 let loadedCharacters: LoadedCharacterData[] | null = null;
 
-/** A palette's sheet as its nth repeat (repeat ≥ 1), or null to draw it as is. */
-type RepeatSource = (palette: number, repeat: number) => LoadedCharacterData | null;
-let repeats: RepeatSource | null = null;
+/**
+ * A palette's sheet as its nth repeat (repeat ≥ 1) and/or mid-blink, or null to draw
+ * the plain sheet (a palette that can't blink, or one with nothing to vary).
+ */
+type VariantSource = (
+  palette: number,
+  repeat: number,
+  blink: boolean,
+) => LoadedCharacterData | null;
+let variants: VariantSource | null = null;
 
 /**
  * Set the character sprites (the cast's sheets, then external char_N.png) and
@@ -47,10 +55,10 @@ let repeats: RepeatSource | null = null;
  */
 export function setCharacterTemplates(
   data: LoadedCharacterData[],
-  repeatSource: RepeatSource | null = null,
+  variantSource: VariantSource | null = null,
 ): void {
   loadedCharacters = data;
-  repeats = repeatSource;
+  variants = variantSource;
   // Clear cache so sprites are rebuilt from loaded data
   spriteCache.clear();
   templatesVersion++;
@@ -95,6 +103,8 @@ export interface CharacterSprites {
   walk: Record<Direction, [SpriteData, SpriteData, SpriteData, SpriteData]>;
   typing: Record<Direction, [SpriteData, SpriteData]>;
   reading: Record<Direction, [SpriteData, SpriteData]>;
+  /** In the chair with nothing to do. */
+  seated: Record<Direction, SpriteData>;
 }
 
 const spriteCache = new Map<string, CharacterSprites>();
@@ -108,9 +118,14 @@ function emptySprite(w: number, h: number): SpriteData {
   return rows;
 }
 
-/** A character's sprites: its own sheet, or the nth repeat's (its clothes recoloured). */
-export function getCharacterSprites(paletteIndex: number, repeat = 0): CharacterSprites {
-  const cacheKey = `${paletteIndex}:${repeat}`;
+/** A character's sprites: its own sheet, or the nth repeat's (its clothes recoloured),
+ *  with its eyes shut when `blink`. */
+export function getCharacterSprites(
+  paletteIndex: number,
+  repeat = 0,
+  blink = false,
+): CharacterSprites {
+  const cacheKey = `${paletteIndex}:${repeat}:${blink ? 1 : 0}`;
   const cached = spriteCache.get(cacheKey);
   if (cached) return cached;
 
@@ -119,7 +134,14 @@ export function getCharacterSprites(paletteIndex: number, repeat = 0): Character
   if (loadedCharacters) {
     // Use pre-colored character sprites directly (no palette swapping)
     const palette = paletteIndex % loadedCharacters.length;
-    const char = (repeat ? repeats?.(palette, repeat) : null) ?? loadedCharacters[palette];
+    const variant = repeat || blink ? variants?.(palette, repeat, blink) : null;
+    if (!variant && blink) {
+      // No blink for this one: its open-eyed sprites, shared under this key too.
+      sprites = getCharacterSprites(paletteIndex, repeat);
+      spriteCache.set(cacheKey, sprites);
+      return sprites;
+    }
+    const char = variant ?? loadedCharacters[palette];
     const d = char.down;
     const u = char.up;
     const rt = char.right;
@@ -143,6 +165,12 @@ export function getCharacterSprites(paletteIndex: number, repeat = 0): Character
         [Dir.UP]: [u[5], u[6]],
         [Dir.RIGHT]: [rt[5], rt[6]],
         [Dir.LEFT]: [flip(rt[5]), flip(rt[6])],
+      },
+      seated: {
+        [Dir.DOWN]: d[SEATED_FRAME],
+        [Dir.UP]: u[SEATED_FRAME],
+        [Dir.RIGHT]: rt[SEATED_FRAME],
+        [Dir.LEFT]: flip(rt[SEATED_FRAME]),
       },
     };
   } else {
@@ -169,6 +197,7 @@ export function getCharacterSprites(paletteIndex: number, repeat = 0): Character
         [Dir.RIGHT]: pairSet,
         [Dir.LEFT]: pairSet,
       },
+      seated: { [Dir.DOWN]: e, [Dir.UP]: e, [Dir.RIGHT]: e, [Dir.LEFT]: e },
     };
   }
 
