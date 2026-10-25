@@ -7,6 +7,7 @@ import {
 } from '../src/constants.js';
 import {
   agentContextUsed,
+  clearAgentContextUsed,
   contextColor,
   contextLeft,
   contextUsedShare,
@@ -69,5 +70,13 @@ describe('a cleared session (0 tokens)', () => {
     const ch = os.characters.get(1)!;
     expect(ch.contextReported).toBe(true);
     expect(ch.contextTokens).toBe(0);
+  });
+});
+
+describe('closing an agent', () => {
+  it("forgets its card's context", () => {
+    setAgentContextUsed(42, 50_000, 200_000);
+    clearAgentContextUsed(42);
+    expect(agentContextUsed(42)).toBeNull();
   });
 });

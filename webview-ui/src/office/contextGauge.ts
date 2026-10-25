@@ -52,6 +52,12 @@ export function setAgentContextUsed(id: number, contextTokens: number, maxTokens
   for (const l of listeners) l();
 }
 
+/** Forget a closed agent's context (useExtensionMessages' closeAgent). */
+export function clearAgentContextUsed(id: number): void {
+  if (!usedById.delete(id)) return;
+  for (const l of listeners) l();
+}
+
 /** An agent's share of context used (0-1), or null when none was reported. */
 export function agentContextUsed(id: number): number | null {
   return usedById.get(id) ?? null;

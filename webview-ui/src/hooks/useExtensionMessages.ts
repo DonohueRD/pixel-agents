@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HooksConsentRequest } from '../../../core/src/messages.js';
 import { cardOrderOf } from '../components/cardBar.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
-import { setAgentContextUsed } from '../office/contextGauge.js';
+import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import { reconcileExistingAgents, staleAgentIds } from '../office/engine/existingAgents.js';
 import type { OfficeState } from '../office/engine/officeState.js';
@@ -295,6 +295,7 @@ export function useExtensionMessages(
       os.removeAllSubagents(id);
       setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
       os.removeAgent(id);
+      clearAgentContextUsed(id);
     };
 
     // A dropped socket (a phone's screen going off, a server restart) loses
