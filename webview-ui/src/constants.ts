@@ -232,9 +232,10 @@ export const TOOL_OVERLAY_GAP_PX = -2;
 /** Reserved character id for the Intro's greeter. Far outside both real agent
  *  ids (positive) and sub-agent ids (small negatives from -1 down). */
 export const GREETER_ID = -1_000_000_000;
-/** The character the greeter wears, by name (the first in the cast if none is
- *  called that). */
-export const GREETER_CHARACTER_NAME = 'Suit';
+/** The character the greeter wears, by its permanent profile id: the default
+ *  cast's Suit (the first in the cast if no character has that id). An id, not
+ *  a name, so renaming the character doesn't change who greets. */
+export const GREETER_CHARACTER_ID = 'char-0';
 /** Stacking order for the Intro's bubble. Deliberately BELOW the modal stack
  *  (ui/Modal defaults to 50, ChangelogModal 51, the migration notice z-100): the
  *  Intro is diegetic furniture over the office, not a modal, so a modal opened

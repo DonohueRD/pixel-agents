@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { CharacterProfile } from '../../../core/src/characterProfiles.js';
 import { DISCORD_INVITE_URL } from '../changelogData.js';
 import { useCast } from '../characters/castStore.js';
+import { greeterPalette } from '../characters/profiles.js';
 import {
   CLAUDE_CODE_INSTALL_COMMAND,
   CLAUDE_CODE_URL,
-  GREETER_CHARACTER_NAME,
   INTRO_BUBBLE_EDGE_MARGIN_PX,
   INTRO_BUBBLE_MAX_WIDTH_PX,
   INTRO_BUBBLE_Z_INDEX,
@@ -149,7 +148,7 @@ export function IntroBubble({
     return () => officeState.despawnGreeter();
   }, [officeState]);
   // Dressed after the spawn above (effects run in order), and again whenever
-  // the cast arrives or is renamed while the Intro is up.
+  // the cast arrives or changes while the Intro is up.
   const cast = useCast();
   const palette = greeterPalette(cast.profiles);
   useEffect(() => {
@@ -480,12 +479,4 @@ export function IntroBubble({
       </div>
     </div>
   );
-}
-
-/** The greeter's character: the one named GREETER_CHARACTER_NAME (any case),
- *  else the first in the cast. */
-function greeterPalette(profiles: readonly CharacterProfile[]): number {
-  const want = GREETER_CHARACTER_NAME.toLowerCase();
-  const index = profiles.findIndex((p) => p.name?.trim().toLowerCase() === want);
-  return index >= 0 ? index : 0;
 }

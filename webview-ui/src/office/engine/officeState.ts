@@ -523,7 +523,7 @@ export class OfficeState {
   }
 
   // ── Greeter ───────────────────────────────────────────────────
-  // The Intro is diegetic: a character (Suit, see greeterPalette) stands near the office's
+  // The Intro is diegetic: a character (Suit, by id: see greeterPalette) stands near the office's
   // bottom-left corner and "speaks" the tour through a DOM bubble
   // (IntroBubble). It is not an agent — see the `greeter` field.
 
