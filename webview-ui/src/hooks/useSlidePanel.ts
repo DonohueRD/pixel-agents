@@ -1,13 +1,8 @@
 import type { TransitionEvent } from 'react';
 import { useEffect, useState } from 'react';
 
-import {
-  SIDE_PANEL_CLOSE_EASE,
-  SIDE_PANEL_CLOSE_MS,
-  SIDE_PANEL_CONTENT_DELAY_MS,
-  SIDE_PANEL_OPEN_EASE,
-  SIDE_PANEL_OPEN_MS,
-} from '../constants.js';
+import { SIDE_PANEL_CLOSE_MS } from '../constants.js';
+import { slideTransitions } from './slideTransitions.js';
 import { prefersReducedMotion } from './usePresence.js';
 
 export interface SlidePanel {
@@ -71,17 +66,7 @@ export function useSlidePanel(open: boolean, { initiallyOpen = false } = {}): Sl
     return () => clearTimeout(timer);
   }, [open, instant]);
 
-  const panelTransition = !animating
-    ? 'none'
-    : shown
-      ? `width ${SIDE_PANEL_OPEN_MS}ms ${SIDE_PANEL_OPEN_EASE}`
-      : `width ${SIDE_PANEL_CLOSE_MS}ms ${SIDE_PANEL_CLOSE_EASE}`;
-  const contentTransition =
-    instant || !animating
-      ? 'none'
-      : shown
-        ? `transform ${SIDE_PANEL_OPEN_MS}ms ${SIDE_PANEL_OPEN_EASE} ${SIDE_PANEL_CONTENT_DELAY_MS}ms, opacity ${SIDE_PANEL_OPEN_MS}ms ease-out ${SIDE_PANEL_CONTENT_DELAY_MS}ms`
-        : `transform ${SIDE_PANEL_CLOSE_MS}ms ease-in, opacity ${SIDE_PANEL_CLOSE_MS / 2}ms ease-in`;
+  const { panelTransition, contentTransition } = slideTransitions({ shown, animating, instant });
 
   const onPanelTransitionEnd = (e: TransitionEvent<HTMLElement>) => {
     if (e.target !== e.currentTarget || e.propertyName !== 'width') return;

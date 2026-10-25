@@ -135,6 +135,7 @@ webview-ui/                          React 19 + Canvas UI (depends only on core/
       useTerminalDrawer.ts           Terminal-pane model for both shells: active/shown pane, socket status, card lookups, the launch latch (expectLaunch → lastLaunched)
       launchLatch.ts                 answersLaunch: a launch's latch expires after LAUNCH_ANSWER_TIMEOUT_MS (pure, Node-tested)
       useSlidePanel.ts               A side panel's open/close motion (bounce out, snap shut, reduced motion; SIDE_PANEL_* timings)
+      slideTransitions.ts            Its two transitions (pure): the width only while opening/closing, the contents' delayed slide whenever motion is allowed (it outlasts the width)
       useIsMobile.ts                 Mobile breakpoint — always false in the VS Code webview
       useKeyboardViewport.ts         Samples the viewport: keyboard open (key bar) + iOS shell clamp height
     office/
