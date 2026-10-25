@@ -269,9 +269,9 @@ This section is auto-generated. Do not edit between the markers; CI fails on dri
 
 - `e2e/standalone/characters.spec.ts:10` — a part picked in the Characters view is saved by Save and survives a reload (Standalone / Characters)
 - `e2e/standalone/characters.spec.ts:71` — a piece saved as a new item is worn, saved beside the cast, and offered after a reload (Standalone / Characters items)
-- `e2e/standalone/directory-modal.spec.ts:44` — Enter on Cancel cancels and Enter on an Area toggles it; neither saves (Standalone / Directory modal keyboard)
-- `e2e/standalone/directory-modal.spec.ts:78` — Enter in the path field saves (Standalone / Directory modal keyboard)
-- `e2e/standalone/directory-modal.spec.ts:99` — an unnamed Directory keeps its Area under the name the host gave it (Standalone / Directory Area mapping)
+- `e2e/standalone/directory-modal.spec.ts:45` — Enter on Cancel cancels and Enter on an Area toggles it; neither saves (Standalone / Directory modal keyboard)
+- `e2e/standalone/directory-modal.spec.ts:79` — Enter in the path field saves (Standalone / Directory modal keyboard)
+- `e2e/standalone/directory-modal.spec.ts:100` — an unnamed Directory keeps its Area under the name the host gave it (Standalone / Directory Area mapping)
 - `e2e/standalone/hooks.spec.ts:23` — propagates hook-driven lifecycle into the browser UI (Standalone / hooks)
 - `e2e/standalone/hooks.spec.ts:117` — a cleared session shows a full gauge on the character and the card (Standalone / context after /clear)
 - `e2e/standalone/hooks.spec.ts:190` — the tokened page shows the Intro and Install writes the hooks (Standalone / hooks consent)
