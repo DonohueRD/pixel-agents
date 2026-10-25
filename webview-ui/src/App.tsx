@@ -17,9 +17,12 @@ import { TerminalHideRibbon } from './components/TerminalHideRibbon.js';
 import { Tooltip } from './components/Tooltip.js';
 import { Button } from './components/ui/Button.js';
 import { Modal } from './components/ui/Modal.js';
+import { PixelIcon } from './components/ui/PixelIcon.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
-import { OFFICE_CANVAS_TEST_ID } from './constants.js';
+import { CONVERSATION_SIDEBAR_SHUT_KEY, OFFICE_CANVAS_TEST_ID } from './constants.js';
+import { ConversationSidebar } from './conversations/ConversationSidebar.js';
+import { resumeConversation } from './conversations/useConversations.js';
 import { useDirectoryEditor } from './hooks/useDirectoryEditor.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
@@ -30,7 +33,9 @@ import { useIsMobile } from './hooks/useIsMobile.js';
 import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
 import { popClass, usePresence } from './hooks/usePresence.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
+import { MobileMenu } from './mobile/MobileMenu.js';
 import { MobileShell } from './mobile/MobileShell.js';
+import type { SwipePanel } from './mobile/useEdgeSwipe.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
@@ -139,6 +144,21 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // The Layout editor's panel, kept on screen while it rolls shut.
   const editorPanel = usePresence(editor.isEditMode);
+  // Desktop: resuming needs a terminal, so only a tokened standalone office
+  // lists past conversations; the zoom stack's top button shows and hides them.
+  const hasSidebar = terminalAvailable && !officeReadOnly;
+  const [sidebarOpen, setSidebarOpen] = useState(() => !storedSidebarShut());
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((was) => {
+      storeSidebarShut(was);
+      return !was;
+    });
+  }, []);
+  const [isConversationsOpen, setIsConversationsOpen] = useState(false);
+  const openConversations = useCallback(() => setIsConversationsOpen(true), []);
+  const closeConversations = useCallback(() => setIsConversationsOpen(false), []);
+  /** The phone menu as a swipe panel (MobileMenu fills it, MobileShell drags it). */
+  const menuSwipe = useRef<SwipePanel>(null);
   const [isCharactersOpen, setIsCharactersOpen] = useState(false);
   const openCharacters = useCallback(() => {
     setIsSettingsOpen(false);
@@ -187,21 +207,30 @@ function App() {
     },
     [expectLaunch],
   );
+  const resumeAndFocus = useCallback(
+    (sessionId: string, directoryPath: string) => {
+      expectLaunch();
+      resumeConversation(sessionId, directoryPath);
+    },
+    [expectLaunch],
+  );
   const mobileShell = useMobileShell({
     getOfficeState,
     terminalAgentIds,
     drawer: terminalDrawer,
     focusedAgentId,
     launchAgent: launchIntoDirectory,
+    resumeConversation: resumeAndFocus,
   });
 
-  // A launched agent comes in focused: once its terminal opens (the pane and
-  // the active card already switch to it), select its character so the office
-  // follows it and its card is tinted, and on the phone slide over to it. Both
-  // are async — the server announces agentCreated, then terminalSessionOpened —
-  // so the character exists by the time the drawer reports the new pane. Only
-  // our own launches: the office is the app's main screen, so a reload that
-  // re-announces live sessions must land on the office.
+  // A launched or resumed agent comes in focused: once its terminal opens (the
+  // pane and the active card already switch to it), select its character so
+  // the office follows it and its card is tinted, and on the phone slide over
+  // to it. Both are async — the server announces agentCreated, then
+  // terminalSessionOpened — so the character exists by the time the drawer
+  // reports the new pane. Only our own launches and resumes: the office is the
+  // app's main screen, so a reload that re-announces live sessions must land
+  // on the office.
   const { lastLaunched } = terminalDrawer;
   const { showTerminal: showMobileTerminal } = mobileShell;
   useEffect(() => {
@@ -412,6 +441,25 @@ function App() {
     [terminalAgentIds, selectTerminal],
   );
 
+  // A running conversation pressed in the conversation list: its agent, as
+  // its card would show it — desktop: its terminal pane (or focus, without
+  // one); phone: its terminal page.
+  const openAgentFromList = useCallback(
+    (agentId: number) => {
+      getOfficeState().selectAndFollow(agentId);
+      const hasTerminal = terminalAgentIds.includes(agentId);
+      if (isMobile) {
+        if (hasTerminal) {
+          terminalDrawer.reveal(agentId);
+          mobileShell.showTerminal();
+        }
+      } else {
+        handleCardSelect(agentId);
+      }
+    },
+    [terminalAgentIds, isMobile, terminalDrawer, mobileShell, handleCardSelect],
+  );
+
   const officeState = getOfficeState();
 
   // Merged set of Directories the Areas dropdown can map: host-contributed ones plus
@@ -543,7 +591,13 @@ function App() {
         <>
           {/* Mobile: pinch replaces the zoom buttons, and the toolbar's
                 jobs move to the card bar (+) and the floating Settings button. */}
-          {!isMobile && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
+          {!isMobile && (
+            <ZoomControls
+              zoom={editor.zoom}
+              onZoomChange={editor.handleZoomChange}
+              sidebar={hasSidebar ? { open: sidebarOpen, onToggle: toggleSidebar } : undefined}
+            />
+          )}
 
           {/* The Claude Code plan's usage, top-left (Settings → Usage Bars). */}
           {usage.status?.installed && <UsageBars limits={usage.limits} mobile={isMobile} />}
@@ -693,6 +747,9 @@ function App() {
           onToggleEditMode={editor.handleToggleEditMode}
           isSettingsOpen={isSettingsOpen}
           onToggleSettings={() => setIsSettingsOpen((v) => !v)}
+          // Where there is a conversation sidebar, Settings lives only at its
+          // foot (shut, it is one click away), never also in the toolbar.
+          showSettings={!hasSidebar}
           isCharactersOpen={isCharactersOpen}
           onOpenCharacters={openCharacters}
           directories={directories}
@@ -704,19 +761,22 @@ function App() {
         />
       )}
 
-      {/* Mobile: Settings floats top-left (the layout editor stays desktop-
-            only — its tools are drag/hover-driven). The roster opens from the
-            arrow on the + card (MobileAgentBar). */}
+      {/* Mobile: the menu button floats top-left; the menu holds the recent
+            conversations and Settings (the layout editor stays desktop-only —
+            its tools are drag/hover-driven). The roster opens from the arrow
+            on the + card (MobileAgentBar). */}
       {isMobile && !isDebugMode && !officeReadOnly && (
         <div className="absolute mobile-safe-top left-8 z-20 flex gap-6">
+          {/* The menu: recent conversations, and Settings at its foot. */}
           <Button
-            size="sm"
-            variant={isSettingsOpen ? 'active' : 'default'}
+            size="icon_lg"
+            variant={isConversationsOpen ? 'active' : 'default'}
             className="border-border! shadow-pixel"
-            onClick={() => setIsSettingsOpen((v) => !v)}
-            icon="settings"
+            onClick={openConversations}
+            aria-label="Menu"
+            title="Menu"
           >
-            Settings
+            <PixelIcon name="menu" />
           </Button>
         </div>
       )}
@@ -783,9 +843,21 @@ function App() {
           onReorder={officeReadOnly ? undefined : saveCardOrder}
           onOpenCharacters={officeReadOnly ? undefined : openCharacters}
           keyboardOpen={keyboard.keyboardOpen}
+          menuSwipe={officeReadOnly ? undefined : menuSwipe}
         />
       ) : (
         <>
+          {hasSidebar && (
+            <ConversationSidebar
+              open={sidebarOpen}
+              onResume={resumeAndFocus}
+              onOpenAgent={openAgentFromList}
+              statusFor={terminalDrawer.statusFor}
+              isSettingsOpen={isSettingsOpen}
+              onToggleSettings={() => setIsSettingsOpen((v) => !v)}
+            />
+          )}
+
           {officeRegion}
 
           {/* The same cards, in the same order, as the phone's bar: every
@@ -883,6 +955,20 @@ function App() {
         currentVersion={extensionVersion}
       />
 
+      {isMobile && !officeReadOnly && (
+        <MobileMenu
+          open={isConversationsOpen}
+          onOpen={openConversations}
+          onClose={closeConversations}
+          swipeRef={menuSwipe}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          showConversations={terminalAvailable}
+          onResume={mobileShell.resume}
+          onOpenAgent={openAgentFromList}
+          statusFor={terminalDrawer.statusFor}
+        />
+      )}
+
       {isCharactersOpen && !officeReadOnly && (
         <CharactersView phone={isMobile} onClose={closeCharacters} />
       )}
@@ -944,6 +1030,23 @@ function App() {
       )}
     </div>
   );
+}
+
+function storedSidebarShut(): boolean {
+  try {
+    return localStorage.getItem(CONVERSATION_SIDEBAR_SHUT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function storeSidebarShut(shut: boolean): void {
+  try {
+    if (shut) localStorage.setItem(CONVERSATION_SIDEBAR_SHUT_KEY, '1');
+    else localStorage.removeItem(CONVERSATION_SIDEBAR_SHUT_KEY);
+  } catch {
+    // Not remembered; it still opens and shuts.
+  }
 }
 
 export default App;
