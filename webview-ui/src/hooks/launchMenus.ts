@@ -9,8 +9,12 @@ export type LaunchMenu = 'none' | 'drawer' | 'roster';
 
 export interface LaunchMenusState {
   menu: LaunchMenu;
-  /** The roster pick the open drawer is asking a Directory for (a palette
-   *  index), or null; forgotten once the drawer shuts. */
+  /**
+   * The roster pick the drawer was opened for (a palette index), or null. It
+   * outlives the drawer's closing, so the closing drawer keeps its "Launch X
+   * in" heading through its pop-out; the drawer's next opening replaces it (a
+   * pick) or drops it (the launch button).
+   */
   palette: number | null;
 }
 
@@ -26,9 +30,9 @@ export type LaunchMenusAction =
   /** Shut `which` if it is the open one; the other menu is left alone. */
   | { type: 'close'; which: Exclude<LaunchMenu, 'none'> };
 
-/** `menu` open instead; a pick only stands for the drawer it opened. */
+/** `menu` open instead, the pick kept (see `palette`). */
 const show = (state: LaunchMenusState, menu: LaunchMenu): LaunchMenusState =>
-  menu === state.menu ? state : { menu, palette: menu === 'drawer' ? state.palette : null };
+  menu === state.menu ? state : { ...state, menu };
 
 export function launchMenusReducer(
   state: LaunchMenusState,

@@ -20,8 +20,8 @@ interface RosterLaunchInputs {
  * The launch button's menus, shared by the phone's card bar and the desktop
  * toolbar: its Directory drawer and, behind the roster arrow, the roster. At
  * most one is open. A pick closes the roster and opens the drawer, whose
- * launch then wears that character (`palette`, forgotten once the drawer
- * closes); the launch button always opens the plain drawer, dropping a pick.
+ * launch then wears that character (`palette`, kept through the drawer's
+ * closing pop so its heading stays, and replaced or dropped when it next opens); the launch button always opens the plain drawer, dropping a pick.
  * Editing and `+ New` open the Characters view on that character.
  * A press outside the open menu closes it (the drawer's boundary is
  * `launchRef`, the shell's launch button wrapper; the roster's is the roster
@@ -84,7 +84,8 @@ export function useRosterLaunch({
     rosterRef,
     buttonRef,
     launchRef,
-    /** The pick the open drawer is asking a Directory for, if any (LaunchDrawer's `pick`). */
+    /** The pick the drawer is asking a Directory for (or, while it pops
+     *  shut, was asking), if any (LaunchDrawer's `pick`). */
     pendingPick:
       palette !== null
         ? ({

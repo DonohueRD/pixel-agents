@@ -37,3 +37,25 @@ describe('launchMenusReducer', () => {
     expect(run({ type: 'openDrawer' }, { type: 'close', which: 'roster' }).menu).toBe('drawer');
   });
 });
+
+describe('the pick through the drawer closing', () => {
+  it('the closing drawer keeps the pick, so its heading stays through the pop', () => {
+    expect(run({ type: 'pick', palette: 3 }, { type: 'close', which: 'drawer' })).toEqual({
+      menu: 'none',
+      palette: 3,
+    });
+    expect(run({ type: 'pick', palette: 3 }, { type: 'openRoster' }).palette).toBe(3);
+  });
+
+  it('the next opening replaces the old pick or drops it', () => {
+    const closed = run({ type: 'pick', palette: 3 }, { type: 'close', which: 'drawer' });
+    expect(launchMenusReducer(closed, { type: 'openDrawer' })).toEqual({
+      menu: 'drawer',
+      palette: null,
+    });
+    expect(launchMenusReducer(closed, { type: 'pick', palette: 1 })).toEqual({
+      menu: 'drawer',
+      palette: 1,
+    });
+  });
+});
