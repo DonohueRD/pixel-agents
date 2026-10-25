@@ -41,6 +41,8 @@ export interface TabDef {
   piece: string | null;
   /** The underwear it offers (Top: the top, Pants: the bottom): no part shows it, None shows skin. */
   under?: Underwear;
+  /** A slot that lives inside this tab, below its own parts (Hair: the beard). */
+  inner?: Exclude<SlotKey, 'body'>;
 }
 
 export const TABS: readonly TabDef[] = [
@@ -54,7 +56,13 @@ export const TABS: readonly TabDef[] = [
     ],
     piece: 'whites',
   },
-  { key: 'hair', label: 'Hair', pickers: [{ key: 'hair', label: 'Colour' }], piece: 'hair' },
+  {
+    key: 'hair',
+    label: 'Hair',
+    pickers: [{ key: 'hair', label: 'Colour' }],
+    piece: 'hair',
+    inner: 'beard',
+  },
   {
     key: 'top',
     label: 'Top',

@@ -24,6 +24,7 @@ import {
   type SlotKey,
   startingUtop,
   type TabKey,
+  TABS,
   underOf,
   UNDERWEAR,
 } from './slots.js';
@@ -165,10 +166,6 @@ export function tabSummary(w: Wardrobe, p: CharacterProfile, tab: TabKey): strin
       const { label } = eyeShape(p);
       return p.colors?.eyes || p.colors?.lashes ? `${label}, recoloured` : label;
     }
-    case 'hair':
-      return p.beard
-        ? `${partLabel(w, 'hair', p.hair)}, ${partLabel(w, 'beard', p.beard)}`
-        : partLabel(w, 'hair', p.hair);
     case 'acc': {
       const worn = ACCESSORIES.filter((a) => p[a.key]).length;
       return worn ? `${worn} worn` : 'None';
@@ -176,7 +173,9 @@ export function tabSummary(w: Wardrobe, p: CharacterProfile, tab: TabKey): strin
     default: {
       const under = underOf(tab);
       if (!p[tab] && under && p[under]) return 'Underwear';
-      return partLabel(w, tab, p[tab]);
+      const { inner } = TABS.find((t) => t.key === tab)!;
+      const worn = partLabel(w, tab, p[tab]);
+      return inner && p[inner] ? `${worn}, ${partLabel(w, inner, p[inner])}` : worn;
     }
   }
 }

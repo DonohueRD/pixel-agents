@@ -8,7 +8,15 @@ import { useDeferredValue, useLayoutEffect, useRef } from 'react';
 import type { CharacterProfile } from '../../../../core/src/characterProfiles.js';
 import { offeredParts } from '../items.js';
 import { setPart, setUnderwear, tabSummary } from '../profiles.js';
-import { ACCESSORIES, EYE_SHAPES, eyeShape, type SlotKey, TABS, underOf } from '../slots.js';
+import {
+  ACCESSORIES,
+  EYE_SHAPES,
+  eyeShape,
+  layerOf,
+  type SlotKey,
+  TABS,
+  underOf,
+} from '../slots.js';
 import { ColorPanel } from './ColorPanel.js';
 import type { SpriteView } from './pixelCanvas.js';
 import { PixelEditor } from './PixelEditor.js';
@@ -168,17 +176,19 @@ function SlotPanel() {
     } else if (under && profile[under]) {
       panels.push(<ColorPanel key={under} picker={{ key: under, label: 'Underwear colour' }} />);
     }
-    if (tab === 'hair') {
-      // beards, under the hairstyles: None or one style, then its colour
+    const { inner } = def;
+    if (inner) {
+      // the slot inside this tab (beards, under the hairstyles): None or one style, then its colour
+      const { label } = layerOf(inner);
       panels.push(
-        <div key="beard" className="chv-colors">
-          <h2>Beard</h2>
-          <SlotOptions slot="beard" />
+        <div key={inner} className="chv-colors">
+          <h2>{label}</h2>
+          <SlotOptions slot={inner} />
         </div>,
       );
-      if (profile.beard)
+      if (profile[inner])
         panels.push(
-          <ColorPanel key="beard-colour" picker={{ key: 'beard', label: 'Beard colour' }} />,
+          <ColorPanel key={`${inner}-colour`} picker={{ key: inner, label: `${label} colour` }} />,
         );
     }
   }
