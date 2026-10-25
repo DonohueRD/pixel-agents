@@ -240,6 +240,25 @@ async function connectPtyHost(distRoot: string, socketPath: string): Promise<Rem
   return sessions;
 }
 
+/**
+ * The terminals for agents this server launches. Construction is cheap -- the
+ * native module is resolved (and probed) lazily on first use, so a user who
+ * never opens a terminal never pays for it. With --no-terminal, a disabled
+ * manager reports "unavailable" through the same plumbing (availability
+ * broadcast, session route, launcher), so nothing downstream special-cases it.
+ *
+ * --pty-host (development only) moves them into a separate process that
+ * outlives this one, so a restart leaves running agents alone. Throws when no
+ * PTY host can be reached.
+ */
+async function openTerminalSessions(args: CliArgs, distRoot: string): Promise<TerminalSessions> {
+  if (!args.terminal) return PtySessionManager.disabled(TERMINAL_DISABLED_BY_FLAG_REASON);
+  if (args.ptyHost) {
+    return connectPtyHost(distRoot, args.ptyHostSocket ?? defaultPtyHostSocket());
+  }
+  return new PtySessionManager();
+}
+
 // ── Main ──────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -280,29 +299,11 @@ async function main(): Promise<void> {
   // ── Create server ──
   const server = new PixelAgentsServer();
 
-  // Terminals for agents this server launches. Construction is cheap -- the
-  // native module is resolved (and probed) lazily on first use, so a user who
-  // never opens a terminal never pays for it. With --no-terminal, a disabled
-  // manager reports "unavailable" through the same plumbing (availability
-  // broadcast, session route, launcher), so nothing downstream special-cases it.
-  //
-  // --pty-host (development only) moves them into a separate process that
-  // outlives this one, so a restart leaves running agents alone.
-  let ptyManager: TerminalSessions;
-  if (!args.terminal) {
-    ptyManager = PtySessionManager.disabled(TERMINAL_DISABLED_BY_FLAG_REASON);
-  } else if (args.ptyHost) {
-    try {
-      ptyManager = await connectPtyHost(distRoot, args.ptyHostSocket ?? defaultPtyHostSocket());
-    } catch (err) {
-      console.error(
-        `[Pixel Agents] --pty-host: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      process.exit(1);
-    }
-  } else {
-    ptyManager = new PtySessionManager();
-  }
+  // Terminals for agents this server launches.
+  const ptyManager = await openTerminalSessions(args, distRoot).catch((err: unknown) => {
+    console.error(`[Pixel Agents] --pty-host: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  });
 
   try {
     // Create runtime first (before server.start, so we can pass it in)

@@ -53,6 +53,11 @@ export type HostMessage =
   | { t: 'data'; agentId: number; data: string; seq: number }
   | { t: 'exit'; agentId: number; exitCode: number; signal?: number };
 
+/** The reply the host sends to a query, paired with it by `rid`. */
+export type HostReply<Q extends HostQuery> = Q extends { t: 'spawn' }
+  ? Extract<HostMessage, { t: 'spawned' | 'spawnFailed' }>
+  : Extract<HostMessage, { t: 'replay' }>;
+
 export function encodeLine(msg: HostRequest | HostMessage): string {
   // JSON.stringify escapes newlines inside strings, so '\n' only ever ends a message.
   return `${JSON.stringify(msg)}\n`;

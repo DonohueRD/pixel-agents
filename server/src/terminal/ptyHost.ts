@@ -51,8 +51,6 @@ export async function startPtyHost(options: PtyHostOptions): Promise<PtyHost> {
   const { socketPath } = options;
   const idleExitMs = options.idleExitMs ?? PTY_HOST_IDLE_EXIT_MS;
   const manager = new PtySessionManager(options.resolve ?? resolvePtyModule);
-  /** The agents with a live terminal, in spawn order. */
-  const live = new Set<number>();
   const clients = new Set<Client>();
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -73,10 +71,12 @@ export async function startPtyHost(options: PtyHostOptions): Promise<PtyHost> {
   };
 
   const sessionsInfo = (): HostSessionInfo[] =>
-    [...live].flatMap((agentId) => {
-      const session = manager.get(agentId);
-      return session ? [{ agentId, pid: session.pid, cols: session.cols, rows: session.rows }] : [];
-    });
+    [...manager.sessions()].map((session) => ({
+      agentId: session.agentId,
+      pid: session.pid,
+      cols: session.cols,
+      rows: session.rows,
+    }));
 
   const handle = (client: Client, msg: HostRequest): void => {
     const reply = (m: HostMessage): void => {
@@ -101,7 +101,6 @@ export async function startPtyHost(options: PtyHostOptions): Promise<PtyHost> {
         const { agentId } = msg.options;
         try {
           const session = manager.create(msg.options);
-          live.add(agentId);
           // A terminal replaced under the same id (create kills the old one)
           // must not speak for its successor.
           const current = (): boolean => (manager.get(agentId) ?? session) === session;
@@ -110,7 +109,6 @@ export async function startPtyHost(options: PtyHostOptions): Promise<PtyHost> {
           });
           session.onExit((exit) => {
             if (!current()) return;
-            live.delete(agentId);
             console.log(`[PTY host] agent ${agentId}: exited (code ${exit.exitCode})`);
             broadcast({ t: 'exit', agentId, exitCode: exit.exitCode, signal: exit.signal });
             checkIdle();

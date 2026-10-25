@@ -103,12 +103,12 @@ export function registerTerminalRoutes(app: FastifyInstance, options: TerminalRo
       // holds, so a queued chunk already inside it is dropped — no byte is
       // dropped or doubled across the handoff, even when the screen comes from
       // the PTY host and output keeps streaming while its reply travels.
-      let replayedSeq: number | null = null;
+      let replaySent = false;
       const preReplay: Array<{ seq: number | null; frame: string }> = [];
       /** Send a frame, or queue it until the replay is out. `seq` numbers an
        *  output chunk (null for the exit, which no replay holds). */
       const forward = (frame: string, seq: number | null): void => {
-        if (replayedSeq === null) preReplay.push({ seq, frame });
+        if (!replaySent) preReplay.push({ seq, frame });
         else send(frame);
       };
 
@@ -132,7 +132,7 @@ export function registerTerminalRoutes(app: FastifyInstance, options: TerminalRo
             rows: replay.rows,
           }),
         );
-        replayedSeq = replay.seq;
+        replaySent = true;
         for (const { seq, frame } of preReplay) {
           if (seq === null || seq > replay.seq) send(frame);
         }

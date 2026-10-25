@@ -126,7 +126,7 @@ export function launchStandaloneAgent(
   runtime.activeAgentId.current = id;
   store.persist();
 
-  const pid = session.pid >= 0 ? ` (pid ${session.pid})` : '';
+  const pid = session.pid !== null ? ` (pid ${session.pid})` : '';
   console.log(`[Pixel Agents] Terminal: Agent ${id} - spawned ${launch.command}${pid} in ${cwd}`);
   return id;
 }

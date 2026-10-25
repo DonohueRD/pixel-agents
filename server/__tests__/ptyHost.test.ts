@@ -124,8 +124,8 @@ describe('PTY host', () => {
       cwd: dir,
       env: { PIXEL_TEST_VAR: 'yes' },
     });
-    expect(session.pid).toBe(-1);
-    await until(() => session.pid > 0);
+    expect(session.pid).toBeNull();
+    await until(() => session.pid !== null);
     expect(session.pid).toBe(spawned[0].pid);
     expect(spawned[0].options.env.PIXEL_TEST_VAR).toBe('yes');
     expect(spawned[0].options.env.TERM).toBe('xterm-256color');

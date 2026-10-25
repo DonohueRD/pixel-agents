@@ -17,7 +17,13 @@ import {
   TERMINAL_DEFAULT_COLS,
   TERMINAL_DEFAULT_ROWS,
 } from '../constants.js';
-import type { HostMessage, HostQuery, HostRequest, HostSessionInfo } from './ptyHostProtocol.js';
+import type {
+  HostMessage,
+  HostQuery,
+  HostReply,
+  HostRequest,
+  HostSessionInfo,
+} from './ptyHostProtocol.js';
 import { encodeLine, LineDecoder, PTY_HOST_PROTOCOL } from './ptyHostProtocol.js';
 import type {
   CreateTerminalOptions,
@@ -26,28 +32,26 @@ import type {
   TerminalSession,
   TerminalSessions,
 } from './terminalSessions.js';
+import { TerminalEvents } from './terminalSessions.js';
 
 /** What a session needs of its connection. */
 interface HostLink {
   send(msg: HostRequest): void;
-  request(msg: HostQuery): Promise<HostMessage>;
+  request<Q extends HostQuery>(msg: Q): Promise<HostReply<Q>>;
 }
 
 /** One agent's terminal, held by the host. */
 class RemoteSession implements TerminalSession {
-  pid: number;
+  pid: number | null;
   cols: number;
   rows: number;
-  /** Last output chunk seen, for a replay the host can no longer give. */
-  private seq = 0;
-  private exit: TerminalExit | null = null;
-  private readonly dataListeners = new Set<(chunk: string, seq: number) => void>();
-  private readonly exitListeners = new Set<(exit: TerminalExit) => void>();
+  /** Its last chunk number is also the seq of a replay the host can no longer give. */
+  private readonly events = new TerminalEvents();
 
   constructor(
     readonly agentId: number,
     private readonly host: HostLink,
-    info: { pid: number; cols: number; rows: number },
+    info: { pid: number | null; cols: number; rows: number },
   ) {
     this.pid = info.pid;
     this.cols = info.cols;
@@ -55,41 +59,34 @@ class RemoteSession implements TerminalSession {
   }
 
   get hasExited(): boolean {
-    return this.exit !== null;
+    return this.events.hasExited;
   }
 
   onData(listener: (chunk: string, seq: number) => void): () => void {
-    this.dataListeners.add(listener);
-    return () => this.dataListeners.delete(listener);
+    return this.events.onData(listener);
   }
 
   onExit(listener: (exit: TerminalExit) => void): () => void {
-    if (this.exit) {
-      const exit = this.exit;
-      queueMicrotask(() => listener(exit));
-      return () => {};
-    }
-    this.exitListeners.add(listener);
-    return () => this.exitListeners.delete(listener);
+    return this.events.onExit(listener);
   }
 
   async replay(): Promise<TerminalReplay> {
-    const empty = { data: '', seq: this.seq, cols: this.cols, rows: this.rows };
-    if (this.exit) return empty;
+    const empty = { data: '', seq: this.events.lastSeq, cols: this.cols, rows: this.rows };
+    if (this.hasExited) return empty;
     try {
       const reply = await this.host.request({ t: 'replay', agentId: this.agentId });
-      return reply.t === 'replay' && reply.replay ? reply.replay : empty;
+      return reply.replay ?? empty;
     } catch {
       return empty;
     }
   }
 
   write(data: string): void {
-    if (!this.exit) this.host.send({ t: 'write', agentId: this.agentId, data });
+    if (!this.hasExited) this.host.send({ t: 'write', agentId: this.agentId, data });
   }
 
   resize(cols: number, rows: number): void {
-    if (this.exit) return;
+    if (this.hasExited) return;
     this.cols = cols;
     this.rows = rows;
     this.host.send({ t: 'resize', agentId: this.agentId, cols, rows });
@@ -97,22 +94,16 @@ class RemoteSession implements TerminalSession {
 
   // -- driven by the connection --
   receiveData(data: string, seq: number): void {
-    this.seq = seq;
-    for (const listener of this.dataListeners) listener(data, seq);
+    this.events.emitData(data, seq);
   }
 
   receiveExit(exit: TerminalExit): void {
-    if (this.exit) return;
-    this.exit = exit;
-    for (const listener of this.exitListeners) listener(exit);
-    this.dataListeners.clear();
-    this.exitListeners.clear();
+    this.events.emitExit(exit);
   }
 
   /** The server is going away: drop listeners without firing them. */
   detach(): void {
-    this.dataListeners.clear();
-    this.exitListeners.clear();
+    this.events.detach();
   }
 }
 
@@ -218,10 +209,6 @@ export class RemotePtySessions implements TerminalSessions {
     return this.hello.moduleId;
   }
 
-  get size(): number {
-    return this.sessions.size;
-  }
-
   create(options: CreateTerminalOptions): TerminalSession {
     if (!this.isAvailable()) {
       throw new Error(this.unavailableReason() ?? 'PTY host unavailable');
@@ -229,14 +216,15 @@ export class RemotePtySessions implements TerminalSessions {
     this.dispose(options.agentId);
     const cols = options.cols ?? TERMINAL_DEFAULT_COLS;
     const rows = options.rows ?? TERMINAL_DEFAULT_ROWS;
-    const session = this.track({ agentId: options.agentId, pid: -1, cols, rows });
+    const session = this.track({ agentId: options.agentId, pid: null, cols, rows });
     void this.request({ t: 'spawn', options }).then(
       (reply) => {
         if (reply.t === 'spawned') {
           session.pid = reply.pid;
         } else {
-          const why = reply.t === 'spawnFailed' ? reply.message : 'no answer';
-          console.error(`[Pixel Agents] PTY host: agent ${options.agentId} spawn failed: ${why}`);
+          console.error(
+            `[Pixel Agents] PTY host: agent ${options.agentId} spawn failed: ${reply.message}`,
+          );
           this.sessions.delete(options.agentId);
           session.receiveExit({ exitCode: -1 });
         }
@@ -276,7 +264,9 @@ export class RemotePtySessions implements TerminalSessions {
 
   // ── Connection ──────────────────────────────────────────────
 
-  private track(info: Pick<HostSessionInfo, 'agentId' | 'pid' | 'cols' | 'rows'>): RemoteSession {
+  private track(
+    info: Pick<HostSessionInfo, 'agentId' | 'cols' | 'rows'> & { pid: number | null },
+  ): RemoteSession {
     const session = new RemoteSession(info.agentId, this.link, info);
     this.sessions.set(info.agentId, session);
     return session;
@@ -287,7 +277,7 @@ export class RemotePtySessions implements TerminalSessions {
   }
 
   /** Send a query and wait for its reply (numbered here, matched by `rid`). */
-  private request(query: HostQuery): Promise<HostMessage> {
+  private request<Q extends HostQuery>(query: Q): Promise<HostReply<Q>> {
     return new Promise((resolve, reject) => {
       if (!this.connected) {
         reject(new Error('PTY host disconnected'));
@@ -300,7 +290,8 @@ export class RemotePtySessions implements TerminalSessions {
       }, PTY_HOST_REQUEST_TIMEOUT_MS);
       this.pending.set(rid, (reply) => {
         clearTimeout(timer);
-        resolve(reply);
+        // The host answers a query with its reply kind (ptyHostProtocol.ts).
+        resolve(reply as HostReply<Q>);
       });
       this.send({ ...query, rid });
     });

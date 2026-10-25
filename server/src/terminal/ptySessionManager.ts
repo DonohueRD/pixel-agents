@@ -32,9 +32,7 @@ import type {
   TerminalSession,
   TerminalSessions,
 } from './terminalSessions.js';
-
-type DataListener = (chunk: string, seq: number) => void;
-type ExitListener = (exit: TerminalExit) => void;
+import { TerminalEvents } from './terminalSessions.js';
 
 /**
  * The mode that restores the mirror's mouse encoding ('' for the default).
@@ -62,12 +60,8 @@ export class PtySession implements TerminalSession {
    *  (scrollback, colors, cursor) faithfully at any attach point. */
   private readonly mirror: HeadlessTerminal;
   private readonly serializeAddon: SerializeAddon;
-  private readonly dataListeners = new Set<DataListener>();
-  private readonly exitListeners = new Set<ExitListener>();
+  private readonly events = new TerminalEvents();
   private killTimer: ReturnType<typeof setTimeout> | null = null;
-  private exit: TerminalExit | null = null;
-  /** Number of the last output chunk (see TerminalReplay). */
-  private seq = 0;
 
   cols: number;
   rows: number;
@@ -91,20 +85,16 @@ export class PtySession implements TerminalSession {
     );
 
     this.pty.onData((chunk) => {
-      const seq = ++this.seq;
       this.mirror.write(chunk);
-      for (const listener of this.dataListeners) listener(chunk, seq);
+      this.events.emitData(chunk);
     });
 
     this.pty.onExit((e) => {
-      this.exit = { exitCode: e.exitCode, signal: e.signal };
       if (this.killTimer) {
         clearTimeout(this.killTimer);
         this.killTimer = null;
       }
-      for (const listener of this.exitListeners) listener(this.exit);
-      this.dataListeners.clear();
-      this.exitListeners.clear();
+      this.events.emitExit({ exitCode: e.exitCode, signal: e.signal });
     });
   }
 
@@ -114,11 +104,11 @@ export class PtySession implements TerminalSession {
 
   /** Exit status, or null while the process is still running. */
   get exitStatus(): TerminalExit | null {
-    return this.exit;
+    return this.events.exitStatus;
   }
 
   get hasExited(): boolean {
-    return this.exit !== null;
+    return this.events.hasExited;
   }
 
   /**
@@ -130,7 +120,7 @@ export class PtySession implements TerminalSession {
    * fires only after every chunk received before this call has been parsed.
    */
   replay(): Promise<TerminalReplay> {
-    const seq = this.seq;
+    const seq = this.events.lastSeq;
     return new Promise((resolve) => {
       this.mirror.write('', () => {
         const data = this.serializeAddon.serialize() + mouseEncodingMode(this.mirror);
@@ -139,32 +129,21 @@ export class PtySession implements TerminalSession {
     });
   }
 
-  onData(listener: DataListener): () => void {
-    this.dataListeners.add(listener);
-    return () => this.dataListeners.delete(listener);
+  onData(listener: (chunk: string, seq: number) => void): () => void {
+    return this.events.onData(listener);
   }
 
-  onExit(listener: ExitListener): () => void {
-    // A listener registered after the process already exited would otherwise
-    // never fire -- the socket would hang waiting for an event in the past.
-    if (this.exit) {
-      const exit = this.exit;
-      queueMicrotask(() => listener(exit));
-      return () => {
-        /* already delivered */
-      };
-    }
-    this.exitListeners.add(listener);
-    return () => this.exitListeners.delete(listener);
+  onExit(listener: (exit: TerminalExit) => void): () => void {
+    return this.events.onExit(listener);
   }
 
   write(data: string): void {
-    if (this.exit) return;
+    if (this.hasExited) return;
     this.pty.write(data);
   }
 
   resize(cols: number, rows: number): void {
-    if (this.exit) return;
+    if (this.hasExited) return;
     if (!isValidDimension(cols) || !isValidDimension(rows)) return;
     this.cols = cols;
     this.rows = rows;
@@ -180,7 +159,7 @@ export class PtySession implements TerminalSession {
 
   /** SIGHUP, then SIGKILL if it doesn't exit within the grace period. */
   dispose(): void {
-    if (this.exit) return;
+    if (this.hasExited) return;
     try {
       this.pty.kill();
     } catch {
@@ -188,7 +167,7 @@ export class PtySession implements TerminalSession {
     }
     this.killTimer = setTimeout(() => {
       this.killTimer = null;
-      if (this.exit) return;
+      if (this.hasExited) return;
       try {
         this.pty.kill('SIGKILL');
       } catch {
@@ -205,7 +184,7 @@ function isValidDimension(value: number): boolean {
 }
 
 export class PtySessionManager implements TerminalSessions {
-  private readonly sessions = new Map<number, PtySession>();
+  private readonly byAgent = new Map<number, PtySession>();
   private resolution: ReturnType<typeof resolvePtyModule> | null = null;
   /** True for a manager built by disabled(): the operator opted out, as opposed
    *  to the PTY module failing to load. Recorded in the server registry. */
@@ -257,7 +236,12 @@ export class PtySessionManager implements TerminalSessions {
   }
 
   get size(): number {
-    return this.sessions.size;
+    return this.byAgent.size;
+  }
+
+  /** Every live terminal, in spawn order. */
+  sessions(): IterableIterator<PtySession> {
+    return this.byAgent.values();
   }
 
   /**
@@ -282,13 +266,13 @@ export class PtySessionManager implements TerminalSessions {
       cols,
       rows,
     );
-    this.sessions.set(options.agentId, session);
+    this.byAgent.set(options.agentId, session);
 
     // Self-evict on exit so a crashed process doesn't leave a session that
     // reports "available" to a reconnecting browser forever.
     session.onExit(() => {
-      if (this.sessions.get(options.agentId) === session) {
-        this.sessions.delete(options.agentId);
+      if (this.byAgent.get(options.agentId) === session) {
+        this.byAgent.delete(options.agentId);
       }
     });
 
@@ -296,18 +280,18 @@ export class PtySessionManager implements TerminalSessions {
   }
 
   get(agentId: number): PtySession | undefined {
-    return this.sessions.get(agentId);
+    return this.byAgent.get(agentId);
   }
 
   has(agentId: number): boolean {
-    return this.sessions.has(agentId);
+    return this.byAgent.has(agentId);
   }
 
   /** Kill and forget an agent's terminal. No-op when there isn't one. */
   dispose(agentId: number): void {
-    const session = this.sessions.get(agentId);
+    const session = this.byAgent.get(agentId);
     if (!session) return;
-    this.sessions.delete(agentId);
+    this.byAgent.delete(agentId);
     session.dispose();
   }
 
@@ -328,8 +312,8 @@ export class PtySessionManager implements TerminalSessions {
    * timer is ref'd, so it also keeps the event loop alive until then).
    */
   disposeAll(): Promise<void> {
-    const sessions = [...this.sessions.values()];
-    for (const agentId of [...this.sessions.keys()]) {
+    const sessions = [...this.byAgent.values()];
+    for (const agentId of [...this.byAgent.keys()]) {
       this.dispose(agentId);
     }
     if (sessions.length === 0) return Promise.resolve();

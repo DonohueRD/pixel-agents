@@ -41,8 +41,8 @@ export interface TerminalReplay {
 /** One agent's terminal. */
 export interface TerminalSession {
   readonly agentId: number;
-  /** The process id, or -1 while a remote spawn is still in flight. */
-  readonly pid: number;
+  /** The process id, or null while a remote spawn is still in flight. */
+  readonly pid: number | null;
   readonly cols: number;
   readonly rows: number;
   readonly hasExited: boolean;
@@ -77,4 +77,73 @@ export interface TerminalSessions {
    *  them (each exit closes its agent). With the PTY host: just disconnect,
    *  leaving them running. */
   shutdown(): Promise<void>;
+}
+
+type DataListener = (chunk: string, seq: number) => void;
+type ExitListener = (exit: TerminalExit) => void;
+
+/**
+ * A TerminalSession's output and exit events, shared by both implementations
+ * so the listener contract lives in one place: chunks are numbered, the exit
+ * fires once (listeners first, then every listener is dropped), and a listener
+ * registered after the exit still gets it, on a microtask.
+ */
+export class TerminalEvents {
+  private seq = 0;
+  private exit: TerminalExit | null = null;
+  private readonly dataListeners = new Set<DataListener>();
+  private readonly exitListeners = new Set<ExitListener>();
+
+  /** Number of the last output chunk (see TerminalReplay). */
+  get lastSeq(): number {
+    return this.seq;
+  }
+
+  /** Exit status, or null while the process is still running. */
+  get exitStatus(): TerminalExit | null {
+    return this.exit;
+  }
+
+  get hasExited(): boolean {
+    return this.exit !== null;
+  }
+
+  onData(listener: DataListener): () => void {
+    this.dataListeners.add(listener);
+    return () => this.dataListeners.delete(listener);
+  }
+
+  onExit(listener: ExitListener): () => void {
+    // A listener registered after the process already exited would otherwise
+    // never fire -- the socket would hang waiting for an event in the past.
+    if (this.exit) {
+      const exit = this.exit;
+      queueMicrotask(() => listener(exit));
+      return () => {
+        /* already delivered */
+      };
+    }
+    this.exitListeners.add(listener);
+    return () => this.exitListeners.delete(listener);
+  }
+
+  /** Fan a chunk out, numbered `seq` (the next number unless given). */
+  emitData(chunk: string, seq = this.seq + 1): void {
+    this.seq = seq;
+    for (const listener of this.dataListeners) listener(chunk, seq);
+  }
+
+  /** Record the exit and fire it, once; later calls are ignored. */
+  emitExit(exit: TerminalExit): void {
+    if (this.exit) return;
+    this.exit = exit;
+    for (const listener of this.exitListeners) listener(exit);
+    this.detach();
+  }
+
+  /** Drop every listener without firing them. */
+  detach(): void {
+    this.dataListeners.clear();
+    this.exitListeners.clear();
+  }
 }
