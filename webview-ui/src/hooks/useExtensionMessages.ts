@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { parseCharacterProfiles } from '../../../core/src/characterProfiles.js';
 import type { HooksConsentRequest } from '../../../core/src/messages.js';
+import { parseWardrobeItems } from '../../../core/src/wardrobeItems.js';
+import { castStore } from '../characters/castStore.js';
+import { setExternalCharacterSprites, startOfficeSync } from '../characters/officeSprites.js';
 import { cardOrderOf } from '../components/cardBar.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import { clearAgentContextUsed, setAgentContextUsed } from '../office/contextGauge.js';
@@ -13,7 +17,6 @@ import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import { setCarpetSprites } from '../office/sprites/carpetTiles.js';
 import { setPetTemplates } from '../office/sprites/petSpriteData.js';
-import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import {
   extractToolName,
   isSubagentToolName,
@@ -266,6 +269,9 @@ export function useExtensionMessages(
   // character to a new tile every turn. Cleared by subagentClear/agentClosed.
   const backgroundParentToolIdsRef = useRef<Record<number, Set<string>>>({});
 
+  // the office wears the cast
+  useEffect(() => startOfficeSync(castStore), []);
+
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
     let pendingAgents: PendingAgent[] = [];
@@ -397,7 +403,7 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.directoryName);
+          os.addAgent(p.id, p.palette, p.repeat, p.seatId, true, p.directoryName);
           if (p.isHeadless) os.setHeadless(p.id, true);
         }
         pendingAgents = [];
@@ -430,12 +436,12 @@ export function useExtensionMessages(
           // created); the lead's character here is only a fallback.
           const parentCh = os.characters.get(teammateParentId);
           const palette = (msg.palette as number | undefined) ?? parentCh?.palette;
-          const hueShift =
-            msg.palette !== undefined ? (msg.hueShift as number | undefined) : parentCh?.hueShift;
+          const repeat =
+            msg.palette !== undefined ? (msg.repeat as number | undefined) : parentCh?.repeat;
           os.addAgent(
             id,
             palette,
-            hueShift,
+            repeat,
             undefined,
             undefined,
             parentCh?.directoryName,
@@ -451,8 +457,8 @@ export function useExtensionMessages(
           }
         } else {
           const palette = msg.palette as number | undefined;
-          const hueShift = msg.hueShift as number | undefined;
-          os.addAgent(id, palette, hueShift, undefined, undefined, directoryName);
+          const repeat = msg.repeat as number | undefined;
+          os.addAgent(id, palette, repeat, undefined, undefined, directoryName);
           noteDirectoryName(directoryName);
           if (isHeadlessAgent(msg.isExternal as boolean | undefined)) {
             os.setHeadless(id, true);
@@ -740,14 +746,19 @@ export function useExtensionMessages(
         setSubagentCharacters((prev) =>
           prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
         );
+      } else if (msg.type === 'characterProfilesLoaded') {
+        // Characters inserted or deleted before an agent's move it to another index: its
+        // new look comes with the list, applied first so no frame mixes the two.
+        for (const look of msg.agentLooks ?? [])
+          os.setAgentLook(look.id, look.palette, look.repeat);
+        castStore.receiveProfiles(
+          parseCharacterProfiles(msg.profiles),
+          msg.saveId,
+          msg.items ? (parseWardrobeItems(msg.items) ?? undefined) : undefined,
+        );
       } else if (msg.type === 'characterSpritesLoaded') {
-        const characters = msg.characters as Array<{
-          down: string[][][];
-          up: string[][][];
-          right: string[][][];
-        }>;
-        console.log(`[Webview] Received ${characters.length} pre-colored character sprites`);
-        setCharacterTemplates(characters);
+        // External asset directories' char_N.png, worn after the character profiles
+        setExternalCharacterSprites(msg.characters);
       } else if (msg.type === 'petSpritesLoaded') {
         const pets = msg.pets;
         if (!Array.isArray(pets)) {

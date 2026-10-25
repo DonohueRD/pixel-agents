@@ -13,7 +13,7 @@ import { Direction } from '../office/types.js';
 
 interface CharacterMugShotProps {
   palette: number;
-  hueShift: number;
+  repeat: number;
   /** On-screen side length in CSS px. Defaults to MUGSHOT_DISPLAY_PX. */
   size?: number;
   /** First sprite row of the crop. Defaults to MUGSHOT_CROP_TOP_ROW. */
@@ -25,11 +25,11 @@ interface CharacterMugShotProps {
  * scaled up crisply. Used as the terminal tab's identity in place of a label.
  *
  * Reuses the office sprite cache: the full front sprite is rendered once per
- * palette:hueShift, and we blit just the head square out of it.
+ * palette:repeat, and we blit just the head square out of it.
  */
 export function CharacterMugShot({
   palette,
-  hueShift,
+  repeat,
   size = MUGSHOT_DISPLAY_PX,
   cropTop = MUGSHOT_CROP_TOP_ROW,
 }: CharacterMugShotProps) {
@@ -41,7 +41,7 @@ export function CharacterMugShot({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const front = getCharacterSprites(palette, hueShift).walk[Direction.DOWN][0];
+    const front = getCharacterSprites(palette, repeat).walk[Direction.DOWN][0];
     const full = getCachedSprite(front, MUGSHOT_RENDER_ZOOM);
 
     const side = MUGSHOT_CROP_SIDE_PX * MUGSHOT_RENDER_ZOOM;
@@ -60,7 +60,7 @@ export function CharacterMugShot({
       side,
       side,
     );
-  }, [palette, hueShift, cropTop]);
+  }, [palette, repeat, cropTop]);
 
   return (
     <canvas
