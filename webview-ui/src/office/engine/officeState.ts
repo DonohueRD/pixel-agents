@@ -12,8 +12,6 @@ import {
   MAX_PET_ID_LENGTH,
   PET_HIT_HALF_WIDTH,
   PET_HIT_HEIGHT,
-  SEAT_REST_MAX_SEC,
-  SEAT_REST_MIN_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { contextUsedShare } from '../contextGauge.js';
@@ -41,7 +39,7 @@ import type {
 } from '../types.js';
 import { CharacterState, Direction, PetState, TILE_SIZE } from '../types.js';
 import { tickBlink } from './blink.js';
-import { createCharacter, updateCharacter, updateHelper } from './characters.js';
+import { createCharacter, restInChair, updateCharacter, updateHelper } from './characters.js';
 import { advanceMatrixEffect, startMatrixEffect } from './matrixEffectState.js';
 import { createPet, updatePet } from './petEntity.js';
 import { anchorTile, closestFreeSeat } from './seatPlacement.js';
@@ -932,10 +930,8 @@ export class OfficeState {
     const ch = this.characters.get(id);
     if (!ch) return;
     ch.isActive = false;
-    ch.seatTimer =
-      ch.seatId && ch.state === CharacterState.TYPE
-        ? SEAT_REST_MIN_SEC + Math.random() * (SEAT_REST_MAX_SEC - SEAT_REST_MIN_SEC)
-        : 0;
+    if (ch.seatId && ch.state === CharacterState.TYPE) restInChair(ch);
+    else ch.seatTimer = 0;
     this.rebuildFurnitureInstances();
   }
 

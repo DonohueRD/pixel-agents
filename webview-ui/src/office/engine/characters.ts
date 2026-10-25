@@ -253,7 +253,7 @@ export function updateCharacter(
               if (ch.seatTimer < 0) {
                 ch.seatTimer = 0;
               } else {
-                ch.seatTimer = randomRange(SEAT_REST_MIN_SEC, SEAT_REST_MAX_SEC);
+                restInChair(ch);
               }
               ch.wanderCount = 0;
               ch.wanderLimit = randomInt(
@@ -439,6 +439,11 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
     default:
       return sprites.walk[ch.dir][1];
   }
+}
+
+/** Sit out a usual rest in the chair before standing up to wander. */
+export function restInChair(ch: Character): void {
+  ch.seatTimer = randomRange(SEAT_REST_MIN_SEC, SEAT_REST_MAX_SEC);
 }
 
 function randomRange(min: number, max: number): number {
