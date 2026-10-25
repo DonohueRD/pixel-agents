@@ -94,6 +94,15 @@ const ASYNC_LAUNCH_AGENT_ID = /\bagentId: ([A-Za-z0-9_-]+)/;
 const REVIVE_TOOL = 'SendMessage';
 const RESUMED_AGENT_ID = /"resumedAgentId"\s*:\s*"([A-Za-z0-9_-]+)"/;
 
+/** A background agent that stops with background work of its own still
+ *  running (a background Bash, a Monitor) gets a completion-shaped notice
+ *  while it lives (Claude Code 2.1.309), with the same <status> as its final
+ *  one: `<summary>Agent "…" is waiting on its own background work</summary>`
+ *  and a note that "the result below may be interim". Only these tell the
+ *  two apart. */
+const INTERIM_NOTICE_SUMMARY = /<summary>[^<]*is waiting on its own background work\s*<\/summary>/;
+const INTERIM_NOTICE_NOTE = /<note>[^<]*\bmay be interim\b[^<]*<\/note>/;
+
 /** Claude names a sidecar-backed spawn's transcript after its agent id. */
 const AGENT_TRANSCRIPT_NAME = /^agent-([A-Za-z0-9_-]+)\.jsonl$/;
 
@@ -199,6 +208,10 @@ export const claudeTeamProvider: TeamProvider = {
       return taskId ? { taskId } : null;
     }
     return null;
+  },
+
+  isInterimSpawnNotice(notice) {
+    return INTERIM_NOTICE_SUMMARY.test(notice) || INTERIM_NOTICE_NOTE.test(notice);
   },
 
   discoverTeammates(projectDir, leadSessionId, teamName) {

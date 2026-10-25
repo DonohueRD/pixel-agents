@@ -7,6 +7,7 @@ import {
   restoreBackgroundSpawns,
   stillRunningSpawns,
 } from './backgroundSpawns.js';
+import { getHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 
 /**
@@ -59,7 +60,11 @@ export function restoredAgentInit(p: PersistedAgent): Omit<AgentStateInit, 'isEx
     // transcripts and the completion queue-operation still matches. Ones
     // whose completion is already in the transcript are dropped: the save on
     // completion can't cover a notice written while no server was running.
-    backgroundSpawns: stillRunningSpawns(restoreBackgroundSpawns(p), p.jsonlFile),
+    backgroundSpawns: stillRunningSpawns(
+      restoreBackgroundSpawns(p),
+      p.jsonlFile,
+      getHookProvider()?.team,
+    ),
     directoryName: p.directoryName ?? p.folderName,
     teamName: p.teamName,
     agentName: p.agentName,

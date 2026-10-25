@@ -90,6 +90,13 @@ export interface TeamProvider {
     resultContent: unknown,
   ): { taskId?: string } | null;
 
+  /** Whether a background agent's completion notice (one notice of a lead's
+   *  queue-operation, see server/src/backgroundSpawns.ts) says the agent is
+   *  still alive: it stopped to wait on background work of its own and will
+   *  notify again. Such a notice must not end the spawn. Claude: the summary
+   *  ends "is waiting on its own background work". */
+  isInterimSpawnNotice?(notice: string): boolean;
+
   /** Return team metadata for a session if it participates in a team.
    *  Provider decides where to look (sidecar file, JSONL header, DB, etc.).
    *  Returns null if the session is not part of a team.

@@ -419,10 +419,15 @@ export function processTranscriptLine(
     } else if (record.type === 'queue-operation' && record.operation === 'enqueue') {
       // Background agents finished. A notice names them by spawn tool id, by
       // agent (task) id, or both; a crash notice lists several task ids at
-      // once with status "stopped" (they died with the process).
+      // once with status "stopped" (they died with the process). An interim
+      // notice (the agent waits on its own background work) ends nothing.
       const content = completionNotice(record);
       if (content) {
-        for (const completedToolId of completedSpawnToolIds(agent.backgroundSpawns, content)) {
+        for (const completedToolId of completedSpawnToolIds(
+          agent.backgroundSpawns,
+          content,
+          hookProvider?.team,
+        )) {
           console.log(`[Pixel Agents] Agent ${agentId} background agent done: ${completedToolId}`);
           agent.backgroundSpawns.delete(completedToolId);
           agent.activeSubagentToolIds.delete(completedToolId);

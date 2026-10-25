@@ -3,6 +3,7 @@ import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { claudeTeamProvider } from '../src/providers/hook/claude/claudeTeamProvider.js';
+import { finishedNotice, interimNotice } from './fixtures/taskNotifications.js';
 
 describe('claudeTeamProvider', () => {
   describe('identity', () => {
@@ -192,6 +193,31 @@ describe('claudeTeamProvider', () => {
         ]),
       ).toBeNull();
       expect(claudeTeamProvider.extractTeammateSpawnFromToolResult!('Agent', undefined)).toBeNull();
+    });
+  });
+
+  describe('isInterimSpawnNotice', () => {
+    const interim = claudeTeamProvider.isInterimSpawnNotice!;
+
+    it('is true for a notice saying the agent waits on its own background work', () => {
+      expect(interim(interimNotice('a38d0d28707132000', 'toolu_01TxjCLvhyBtNqkM64HGeuKQ'))).toBe(
+        true,
+      );
+      expect(interim(interimNotice('a38d0d28707132000'))).toBe(true);
+    });
+
+    it('is false for a finished notice, a crash notice and an older note-less one', () => {
+      expect(interim(finishedNotice('a942476d03fdc3ca7', 'toolu_01JxVtGRRvirZKVdtUsrqyPH'))).toBe(
+        false,
+      );
+      expect(
+        interim(
+          '<task-notification><task-id>a1</task-id><status>stopped</status></task-notification>',
+        ),
+      ).toBe(false);
+      expect(interim('<task-notification> <task-id>a1</task-id> <output>done</output>')).toBe(
+        false,
+      );
     });
   });
 

@@ -1,6 +1,11 @@
 import * as fs from 'fs';
 
 import type { PersistedAgent } from '../../core/src/schemas.js';
+import type { TeamProvider } from '../../core/src/teamProvider.js';
+
+/** What the notice readers need from the provider: whether a notice says its
+ *  agent is still alive (TeamProvider.isInterimSpawnNotice). */
+export type NoticeReader = Pick<TeamProvider, 'isInterimSpawnNotice'> | undefined;
 
 /**
  * A lead's live background spawns, keyed by the tool id they run under: the
@@ -82,16 +87,26 @@ export function restoreBackgroundSpawns(p: PersistedAgent): BackgroundSpawns {
 
 /** The live spawns a completion notice (a queue-operation's content) names,
  *  by spawn tool id or by task (agent) id. Ids it names that aren't live are
- *  ignored. The `<tool-use-id>` / `<task-id>` tags are Claude Code's notice
- *  format (like the file-fallback parser around it). */
-export function completedSpawnToolIds(spawns: BackgroundSpawns, content: string): Set<string> {
+ *  ignored, and so is a notice the provider calls interim: its agent stopped
+ *  to wait on background work of its own and is still alive. The
+ *  `<task-notification>` / `<tool-use-id>` / `<task-id>` tags are Claude
+ *  Code's notice format (like the file-fallback parser around it). */
+export function completedSpawnToolIds(
+  spawns: BackgroundSpawns,
+  content: string,
+  team?: NoticeReader,
+): Set<string> {
   const done = new Set<string>();
-  for (const m of content.matchAll(/<tool-use-id>(.*?)<\/tool-use-id>/g)) {
-    if (spawns.has(m[1])) done.add(m[1]);
-  }
-  for (const m of content.matchAll(/<task-id>(.*?)<\/task-id>/g)) {
-    const toolId = spawnToolIdOfTask(spawns, m[1]);
-    if (toolId) done.add(toolId);
+  // Each notification on its own: an interim one spares only its own agent.
+  for (const notice of content.split('<task-notification>')) {
+    if (team?.isInterimSpawnNotice?.(notice)) continue;
+    for (const m of notice.matchAll(/<tool-use-id>(.*?)<\/tool-use-id>/g)) {
+      if (spawns.has(m[1])) done.add(m[1]);
+    }
+    for (const m of notice.matchAll(/<task-id>(.*?)<\/task-id>/g)) {
+      const toolId = spawnToolIdOfTask(spawns, m[1]);
+      if (toolId) done.add(toolId);
+    }
   }
   return done;
 }
@@ -103,9 +118,14 @@ export function completedSpawnToolIds(spawns: BackgroundSpawns, content: string)
  * restored agent reads its transcript from the end, past the notice, so the
  * spawn would never finish. A notice only counts after the spawn's launch: an
  * agent revived later reuses its task id, and an older notice is not its end.
- * An unreadable transcript keeps every spawn.
+ * An interim notice (see completedSpawnToolIds) ends nothing. An unreadable
+ * transcript keeps every spawn.
  */
-export function stillRunningSpawns(spawns: BackgroundSpawns, jsonlFile: string): BackgroundSpawns {
+export function stillRunningSpawns(
+  spawns: BackgroundSpawns,
+  jsonlFile: string,
+  team?: NoticeReader,
+): BackgroundSpawns {
   if (spawns.size === 0) return spawns;
   let text: string;
   try {
@@ -124,7 +144,7 @@ export function stillRunningSpawns(spawns: BackgroundSpawns, jsonlFile: string):
         continue;
       }
       if (notice === null) continue;
-      for (const toolId of completedSpawnToolIds(live, notice)) live.delete(toolId);
+      for (const toolId of completedSpawnToolIds(live, notice, team)) live.delete(toolId);
       continue;
     }
     for (const [toolId, spawn] of spawns) {

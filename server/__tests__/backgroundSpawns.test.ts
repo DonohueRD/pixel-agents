@@ -7,10 +7,15 @@ import { restoredAgentInit } from '../src/agentPersistence.js';
 import type { BackgroundSpawns } from '../src/backgroundSpawns.js';
 import {
   classifySpawn,
+  completedSpawnToolIds,
   completionNotice,
   launchSpawn,
   stillRunningSpawns,
 } from '../src/backgroundSpawns.js';
+import { claudeProvider } from '../src/providers/hook/claude/claude.js';
+import { claudeTeamProvider } from '../src/providers/hook/claude/claudeTeamProvider.js';
+import { setHookProvider } from '../src/transcriptParser.js';
+import { finishedNotice, interimNotice, noticeRecord } from './fixtures/taskNotifications.js';
 
 const launch = (toolId: string, taskId: string) =>
   JSON.stringify({
@@ -75,6 +80,22 @@ describe('stillRunningSpawns: a restored lead drops spawns that finished before 
     expect([...stillRunningSpawns(spawns, file).keys()]).toEqual(['toolu_revive']);
   });
 
+  it('keeps a spawn whose last notice is interim, drops one that then finished', () => {
+    write(
+      launch('toolu_a', 'task-a'),
+      launch('toolu_b', 'task-b'),
+      noticeRecord(interimNotice('task-a', 'toolu_a')),
+      noticeRecord(interimNotice('task-b', 'toolu_b')),
+      noticeRecord(interimNotice('task-b')),
+      noticeRecord(finishedNotice('task-b')),
+    );
+    const spawns: BackgroundSpawns = new Map([
+      ['toolu_a', { taskId: 'task-a' }],
+      ['toolu_b', { taskId: 'task-b' }],
+    ]);
+    expect([...stillRunningSpawns(spawns, file, claudeTeamProvider).keys()]).toEqual(['toolu_a']);
+  });
+
   it('keeps every spawn when the transcript cannot be read', () => {
     const spawns: BackgroundSpawns = new Map([['toolu_a', { taskId: 'task-a' }]]);
     expect(stillRunningSpawns(spawns, path.join(dir, 'missing.jsonl'))).toBe(spawns);
@@ -91,6 +112,59 @@ describe('stillRunningSpawns: a restored lead drops spawns that finished before 
       backgroundSpawns: [{ toolId: 'toolu_a', taskId: 'task-a' }],
     });
     expect(init.backgroundSpawns?.size).toBe(0);
+  });
+
+  it('restoredAgentInit asks the registered provider which notices are interim', () => {
+    setHookProvider(claudeProvider);
+    write(launch('toolu_a', 'task-a'), noticeRecord(interimNotice('task-a', 'toolu_a')));
+    const init = restoredAgentInit({
+      id: 6,
+      sessionId: 'lead',
+      terminalName: '',
+      jsonlFile: file,
+      projectDir: dir,
+      backgroundSpawns: [{ toolId: 'toolu_a', taskId: 'task-a' }],
+    });
+    expect([...(init.backgroundSpawns?.keys() ?? [])]).toEqual(['toolu_a']);
+  });
+});
+
+describe('completedSpawnToolIds: which live spawns a notice ends', () => {
+  const spawns = (): BackgroundSpawns =>
+    new Map([
+      ['toolu_a', { taskId: 'task-a' }],
+      ['toolu_b', { taskId: 'task-b' }],
+    ]);
+  const ended = (content: string) => [
+    ...completedSpawnToolIds(spawns(), content, claudeTeamProvider),
+  ];
+
+  it('an interim notice ends nothing, by tool id or by task id alone', () => {
+    expect(ended(interimNotice('task-a', 'toolu_a'))).toEqual([]);
+    expect(ended(interimNotice('task-a'))).toEqual([]);
+  });
+
+  it('a finished notice ends its spawn', () => {
+    expect(ended(finishedNotice('task-a', 'toolu_a'))).toEqual(['toolu_a']);
+    expect(ended(finishedNotice('task-a'))).toEqual(['toolu_a']);
+  });
+
+  it('a crash notice (status stopped, several task ids) ends them all', () => {
+    const crash =
+      '<task-notification>\n<task-id>task-a</task-id>\n<task-id>task-b</task-id>\n<status>stopped</status>\n</task-notification>';
+    expect(ended(crash)).toEqual(['toolu_a', 'toolu_b']);
+  });
+
+  it('a notice without a note (older CLI versions) ends its spawn', () => {
+    expect(
+      ended(
+        '<task-notification> <task-id>task-a</task-id> <tool-use-id>toolu_a</tool-use-id> <output>done</output>',
+      ),
+    ).toEqual(['toolu_a']);
+  });
+
+  it('an interim notice spares only its own agent when notices arrive together', () => {
+    expect(ended(interimNotice('task-a') + '\n' + finishedNotice('task-b'))).toEqual(['toolu_b']);
   });
 });
 

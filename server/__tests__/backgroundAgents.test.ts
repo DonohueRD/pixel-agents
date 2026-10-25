@@ -22,6 +22,7 @@ import {
   setHookProvider,
 } from '../src/transcriptParser.js';
 import type { AgentState } from '../src/types.js';
+import { finishedNotice, interimNotice, noticeRecord } from './fixtures/taskNotifications.js';
 
 const LEAD_SESSION = 'lead-session-1';
 const SPAWN_TOOL_ID = 'toolu_01LMvN98KN4sn1fmvftm7vhk';
@@ -456,6 +457,34 @@ describe('background spawns (teams OFF) classified by sidecar name', () => {
     expect(lead.backgroundSpawns.size).toBe(0);
   });
 
+  it('an interim notice leaves the Sub-agent live until its finished notice', () => {
+    // The agent stopped to wait on background work of its own: Claude Code
+    // writes a completion-shaped notice (tool id first, then task id only)
+    // each time it pauses. Only the finished one is its end.
+    const jsonlPath = seedSidecar();
+    spawnAndLaunch();
+    const taskId = 'a4cb86c99458dbe55';
+
+    for (const notice of [interimNotice(taskId, SPAWN_TOOL_ID), interimNotice(taskId)]) {
+      processTranscriptLine(1, noticeRecord(notice), agents, waitingTimers, permissionTimers);
+      expect(completed).toEqual([]);
+      expect(watch.isWatching(jsonlPath)).toBe(true);
+      expect(lead.backgroundSpawns.has(SPAWN_TOOL_ID)).toBe(true);
+      expect(messages.some((m) => m.type === 'subagentClear')).toBe(false);
+    }
+
+    processTranscriptLine(
+      1,
+      noticeRecord(finishedNotice(taskId)),
+      agents,
+      waitingTimers,
+      permissionTimers,
+    );
+    expect(completed).toEqual([{ leadId: 1, toolUseId: SPAWN_TOOL_ID }]);
+    expect(watch.isWatching(jsonlPath)).toBe(false);
+    expect(lead.backgroundSpawns.size).toBe(0);
+  });
+
   it('a crash notice naming the spawn by task id alone ends it', () => {
     // After a host crash the harness lists the agents that died with the
     // process by task id only, with no tool-use-id.
@@ -748,6 +777,23 @@ describe('background spawns (teams OFF) classified by sidecar name', () => {
     expect(completed).toEqual([{ leadId: 1, toolUseId: SPAWN_TOOL_ID }]);
     expect([...agents.values()].some((a) => a.leadAgentId === 1)).toBe(false);
     expect(lead.backgroundSpawns.size).toBe(0);
+  });
+
+  it('an interim notice leaves the teammate in the office', () => {
+    seedSidecar({ name: 'ghost-writer' });
+    spawnAndLaunch();
+
+    processTranscriptLine(
+      1,
+      noticeRecord(interimNotice('a4cb86c99458dbe55', SPAWN_TOOL_ID)),
+      agents,
+      waitingTimers,
+      permissionTimers,
+    );
+
+    expect(completed).toEqual([]);
+    expect([...agents.values()].some((a) => a.leadAgentId === 1)).toBe(true);
+    expect(lead.backgroundSpawns.has(SPAWN_TOOL_ID)).toBe(true);
   });
 
   // ── Shared gate ─────────────────────────────────────────────────────
