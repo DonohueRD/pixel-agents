@@ -100,6 +100,7 @@ function setContext(
 ): void {
   agent.contextTokens = tokens;
   agent.maxContextTokens = maxTokens;
+  agent.contextReported = true;
   agents.broadcast({
     type: 'agentContextUsage',
     id: agentId,
@@ -119,13 +120,29 @@ export function applyReportedContext(agents: AgentStateStore, report: ReportedCo
     if (agent.sessionId !== report.sessionId) continue;
     const tokens = Math.round((report.usedPercentage / 100) * report.windowTokens);
     agent.reportedContextWindow = report.windowTokens;
-    if (agent.contextTokens === tokens && agent.maxContextTokens === report.windowTokens) {
+    if (
+      agent.contextReported &&
+      agent.contextTokens === tokens &&
+      agent.maxContextTokens === report.windowTokens
+    ) {
       return true;
     }
     setContext(agents, agentId, agent, tokens, report.windowTokens);
     return true;
   }
   return false;
+}
+
+/**
+ * The session was cleared (/clear): its context is empty, a real 0 the office
+ * shows as a full gauge. The window stays — the same model runs on — and the
+ * fresh transcript is a new file, so its own records decide the next reading.
+ */
+export function clearContextUsage(agentId: number, agents: AgentStateStore): void {
+  const agent = agents.get(agentId);
+  if (!agent) return;
+  agent.sawMainChainUsage = false;
+  setContext(agents, agentId, agent, 0, agent.maxContextTokens);
 }
 
 /**

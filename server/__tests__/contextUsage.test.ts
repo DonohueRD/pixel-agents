@@ -362,6 +362,29 @@ describe('applyReportedContext', () => {
     expect(agent.maxContextTokens).toBe(1_000_000);
   });
 
+  it('sends a real 0 the office has not heard yet (a fresh or cleared session)', () => {
+    const agents = new AgentStateStore();
+    agents.set(1, createTestAgent({ sessionId: 'sess-1' }));
+    const messages: Record<string, unknown>[] = [];
+    agents.on('broadcast', (msg) => messages.push(msg as Record<string, unknown>));
+
+    const report = {
+      sessionId: 'sess-1',
+      usedPercentage: 0,
+      windowTokens: DEFAULT_MAX_CONTEXT_TOKENS,
+    };
+    applyReportedContext(agents, report);
+    applyReportedContext(agents, report);
+    expect(messages).toEqual([
+      {
+        type: 'agentContextUsage',
+        id: 1,
+        contextTokens: 0,
+        maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,
+      },
+    ]);
+  });
+
   it('ignores a session no agent runs', () => {
     const agents = new AgentStateStore();
     agents.set(1, createTestAgent({ sessionId: 'sess-1' }));

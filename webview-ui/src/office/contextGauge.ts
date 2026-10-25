@@ -27,6 +27,17 @@ export function contextLeft(usedRatio: number): number {
   return Math.max(0, 1 - usedRatio);
 }
 
+/**
+ * The share of the context used (0-1) that an agentContextUsage reports, or
+ * null when it says nothing usable. 0 tokens is a real reading — the session
+ * was just cleared — and shows as a full gauge: the server never sends the
+ * meaningless all-zero usage records.
+ */
+export function contextUsedShare(contextTokens: number, maxTokens: number): number | null {
+  if (!Number.isFinite(contextTokens) || contextTokens < 0 || !(maxTokens > 0)) return null;
+  return Math.min(1, contextTokens / maxTokens);
+}
+
 // Each agent's share used, as the latest agentContextUsage said (the server
 // re-sends them on every connect). React reads it per card, so a card
 // re-renders when its own agent's context moves.
@@ -35,11 +46,15 @@ const listeners = new Set<() => void>();
 
 /** Record an agentContextUsage (useExtensionMessages). */
 export function setAgentContextUsed(id: number, contextTokens: number, maxTokens: number): void {
-  if (!(contextTokens > 0) || !(maxTokens > 0)) return;
-  const used = Math.min(1, contextTokens / maxTokens);
-  if (usedById.get(id) === used) return;
+  const used = contextUsedShare(contextTokens, maxTokens);
+  if (used === null || usedById.get(id) === used) return;
   usedById.set(id, used);
   for (const l of listeners) l();
+}
+
+/** An agent's share of context used (0-1), or null when none was reported. */
+export function agentContextUsed(id: number): number | null {
+  return usedById.get(id) ?? null;
 }
 
 function subscribe(listener: () => void): () => void {
@@ -49,5 +64,5 @@ function subscribe(listener: () => void): () => void {
 
 /** An agent's share of context used (0-1), or null before its first turn. */
 export function useAgentContextUsed(id: number): number | null {
-  return useSyncExternalStore(subscribe, () => usedById.get(id) ?? null);
+  return useSyncExternalStore(subscribe, () => agentContextUsed(id));
 }

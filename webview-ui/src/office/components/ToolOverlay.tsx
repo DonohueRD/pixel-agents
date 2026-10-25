@@ -282,12 +282,13 @@ export function ToolOverlay({
         const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
 
         // Context gauge. Every agent gets one — lead, teammate, adopted,
-        // headless — as soon as it has taken a turn. Sub-agents never do: they
-        // have no session of their own, so contextTokens stays 0.
+        // headless — as soon as the server reports its context (a cleared
+        // session's 0 included: a full gauge). Sub-agents never do: they have
+        // no session of their own, so nothing is ever reported for them.
         // Drawn as a health bar: full when the context is empty, draining as
         // it fills (the colour still warns by the share used).
         const contextRatio = ch.contextTokens / ch.maxContextTokens;
-        const showContextGauge = !isSub && ch.contextTokens > 0;
+        const showContextGauge = !isSub && ch.contextReported === true;
 
         return (
           <Fragment key={id}>

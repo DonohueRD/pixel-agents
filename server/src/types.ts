@@ -64,6 +64,9 @@ export interface AgentState {
   /** The window the CLI itself reported for this session (usage bridge);
    *  preferred over the model's window and the estimate once known. */
   reportedContextWindow?: number;
+  /** True once the office was told this agent's context (agentContextUsage),
+   *  so a 0 after /clear is a real reading, re-sent on every connect. */
+  contextReported?: boolean;
 
   // -- Agent Teams --
   teamName?: string;
