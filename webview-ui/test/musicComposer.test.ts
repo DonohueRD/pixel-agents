@@ -2,14 +2,9 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  chooseMood,
-  makeSong,
-  MOOD_KEYS,
-  type MoodKey,
-  parseSongCode,
-  songCode,
-} from '../src/music/composer.js';
+import { makeSong } from '../src/music/composer.js';
+import { chooseMood, MOOD_KEYS, type MoodKey } from '../src/music/moods.js';
+import { parseSongCode, songCode } from '../src/music/songCode.js';
 
 /** A tune's fingerprint: every field, every step. */
 const fingerprint = (song: unknown): string =>

@@ -24,8 +24,9 @@ import {
 } from '../constants.js';
 import { writeClipboardText } from '../terminal/clipboard.js';
 import { findTouch, withinTapSlop } from '../touch/touchPrimitives.js';
-import { keyLabel, MOOD_KEYS, MOODS, type MoodSetting, songCode } from './composer.js';
+import { MOOD_KEYS, MOODS, type MoodSetting } from './moods.js';
 import { officeRadio } from './musicEngine.js';
+import { keyLabel, songCode } from './songCode.js';
 
 const MOOD_OPTIONS: MoodSetting[] = ['auto', ...MOOD_KEYS];
 const moodName = (m: MoodSetting) => (m === 'auto' ? 'Auto' : MOODS[m].label);

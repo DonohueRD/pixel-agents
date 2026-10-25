@@ -20,18 +20,15 @@ import {
   MUSIC_VISUALIZER_LOW_HZ,
 } from '../constants.js';
 import {
-  chooseMood,
   makeSong,
-  MOOD_KEYS,
-  type MoodKey,
-  type MoodSetting,
-  newSeed,
   type NoiseEvent,
-  parseSongCode,
   type PulseEvent,
   type Song,
   type WaveEvent,
 } from './composer.js';
+import { chooseMood, MOOD_KEYS, type MoodKey, type MoodSetting } from './moods.js';
+import { newSeed } from './rng.js';
+import { parseSongCode } from './songCode.js';
 
 const CHANNELS = ['pu1', 'pu2', 'wav', 'noi'] as const;
 type Channel = (typeof CHANNELS)[number];
