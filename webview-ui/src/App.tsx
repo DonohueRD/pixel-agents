@@ -167,22 +167,14 @@ function App() {
     agentSeenActivity,
   });
 
-  // A launched agent comes in focused: once its terminal opens (the pane and
-  // the active card already switch to it), select its character so the office
-  // follows it and its card is tinted. Both are async — the server announces
-  // agentCreated, then terminalSessionOpened — so the character exists by the
-  // time the drawer reports the new pane.
-  const focusNextOpenedRef = useRef(false);
-  const { lastOpened } = terminalDrawer;
-  useEffect(() => {
-    if (!lastOpened || !focusNextOpenedRef.current) return;
-    focusNextOpenedRef.current = false;
-    getOfficeState().selectAndFollow(lastOpened.agentId);
-  }, [lastOpened]);
-  const launchIntoDirectory = useCallback((directory: Directory) => {
-    focusNextOpenedRef.current = true;
-    transport.send({ type: 'launchAgent', directoryPath: directory.path });
-  }, []);
+  const { expectLaunch } = terminalDrawer;
+  const launchIntoDirectory = useCallback(
+    (directory: Directory) => {
+      expectLaunch();
+      transport.send({ type: 'launchAgent', directoryPath: directory.path });
+    },
+    [expectLaunch],
+  );
   const mobileShell = useMobileShell({
     getOfficeState,
     terminalAgentIds,
@@ -190,6 +182,23 @@ function App() {
     focusedAgentId,
     launchAgent: launchIntoDirectory,
   });
+
+  // A launched agent comes in focused: once its terminal opens (the pane and
+  // the active card already switch to it), select its character so the office
+  // follows it and its card is tinted, and on the phone slide over to it. Both
+  // are async — the server announces agentCreated, then terminalSessionOpened —
+  // so the character exists by the time the drawer reports the new pane. Only
+  // our own launches: the office is the app's main screen, so a reload that
+  // re-announces live sessions must land on the office.
+  const { lastLaunched } = terminalDrawer;
+  const { showTerminal: showMobileTerminal } = mobileShell;
+  useEffect(() => {
+    if (!lastLaunched) return;
+    getOfficeState().selectAndFollow(lastLaunched.agentId);
+    if (isMobile) showMobileTerminal();
+    // Keyed on the launch alone: a later breakpoint change must not slide.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastLaunched]);
 
   const currentMajorMinor = toMajorMinor(extensionVersion);
 
@@ -350,7 +359,6 @@ function App() {
   }, []);
 
   const { reveal: revealTerminal } = terminalDrawer;
-  const { showTerminal: showMobileTerminal } = mobileShell;
   const handleClick = useCallback(
     (agentId: number) => {
       // If clicked agent is a sub-agent, focus the parent's terminal instead
