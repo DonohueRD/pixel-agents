@@ -21,6 +21,12 @@ import {
 } from './configPersistence.js';
 import { MAX_CHARACTER_REPEAT, TERMINAL_REQUIRES_TOKEN_REASON } from './constants.js';
 import {
+  conversationLook,
+  findTranscript,
+  listConversations,
+  recordConversationLooks,
+} from './conversations.js';
+import {
   handleDirectoryClientMessage,
   type HostDirectoryEntry,
   listDirectories,
@@ -99,6 +105,9 @@ const KEY_HOOKS_INFO_SHOWN = 'pixel-agents.hooksInfoShown';
 const KEY_SHOW_AREAS = 'pixel-agents.showAreas';
 const KEY_BYPASS_PERMISSIONS = 'pixel-agents.bypassPermissions';
 const KEY_SHOW_HOST_DIRECTORIES = 'pixel-agents.showHostDirectories';
+
+/** A resumable session id: a UUID, never anything a CLI could read as a flag. */
+const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * This host's own Directory contribution: the directory the server was started
@@ -185,6 +194,52 @@ export function handleClientMessage(
       break;
     }
 
+    case 'requestConversations': {
+      if (!ctx.ptyManager) break;
+      // Background-spawn children share their lead's session: the lead runs it.
+      const live = new Map(
+        [...store]
+          .filter(([, agent]) => !agent.spawnToolUseId)
+          .map(([id, agent]) => [
+            agent.sessionId,
+            { agentId: id, palette: agent.palette, repeat: agent.repeat },
+          ]),
+      );
+      send({
+        type: 'conversationsLoaded',
+        directories: listConversations(
+          listDirectories(shownHostDirectoriesFor(ctx)),
+          claudeProvider,
+          live,
+        ),
+      });
+      break;
+    }
+
+    case 'resumeConversation': {
+      if (!runtime || !ctx.ptyManager) break;
+      const sessionId = msg.sessionId;
+      const directoryPath = msg.directoryPath;
+      // A session id becomes a CLI argument: only ever a UUID.
+      if (typeof sessionId !== 'string' || !SESSION_ID_PATTERN.test(sessionId)) break;
+      if (typeof directoryPath !== 'string') break;
+      // Already in the office: nothing to bring back.
+      if ([...store].some(([, agent]) => agent.sessionId === sessionId)) break;
+      const transcript = findTranscript(claudeProvider, directoryPath, sessionId);
+      if (!transcript) break;
+      const look = conversationLook(sessionId);
+      launchStandaloneAgent(
+        { store, runtime, ptyManager: ctx.ptyManager, provider: claudeProvider },
+        {
+          directoryPath,
+          bypassPermissions: adapter?.getSetting(KEY_BYPASS_PERMISSIONS, false) ?? false,
+          palette: look?.palette,
+          resume: { sessionId, transcript, seatId: look?.seatId },
+        },
+      );
+      break;
+    }
+
     case 'closeAgent': {
       // Two shapes now: a PTY-backed agent we launched (kill the process -- the
       // counterpart of VS Code's terminalRef.dispose()), or an external agent we
@@ -267,6 +322,8 @@ export function handleClientMessage(
           }
         }
         adapter?.saveSeats(seats);
+        // Kept per session, so a resumed conversation comes back as it was.
+        recordConversationLooks(store, seats);
       }
       break;
 
