@@ -1,4 +1,4 @@
-import type { CardVariant } from './cardBar.js';
+import type { CardVariant, CloseMode } from './cardBar.js';
 import { CharacterMugShot } from './CharacterMugShot.js';
 import { Button } from './ui/Button.js';
 import { PixelIcon } from './ui/PixelIcon.js';
@@ -27,8 +27,6 @@ const CARD_VARIANT: Record<CardVariant, string> = {
   focused: 'bg-active-bg border-transparent',
   active: 'bg-active-bg border-accent',
 };
-
-export type CloseMode = 'shown' | 'hover' | 'hidden';
 
 // `hover` fades with opacity rather than visibility, so the × stays a
 // hit target (a pointer over it hovers the card anyway).

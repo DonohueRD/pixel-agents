@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  cardAgentIds,
+  cardOrderOf,
   cardVariant,
+  closeMode,
   mergeOrder,
   reorderByPointer,
 } from '../src/components/cardBar.js';
@@ -15,14 +16,30 @@ describe('cardVariant', () => {
   });
 });
 
-describe('cardAgentIds', () => {
+describe('cardOrderOf', () => {
   it('only main agents get a card: teammates are left out, in order', () => {
-    expect(cardAgentIds([1, 8, 3, 10], new Set([8, 10]))).toEqual([1, 3]);
+    expect(cardOrderOf([], [1, 8, 3, 10], new Set([8, 10]))).toEqual([1, 3]);
   });
 
   it('is every agent when there are no teammates', () => {
-    const agents = [1, 2];
-    expect(cardAgentIds(agents, new Set())).toBe(agents);
+    expect(cardOrderOf([], [1, 2], new Set())).toEqual([1, 2]);
+  });
+
+  it('keeps the saved order, without teammates', () => {
+    expect(cardOrderOf([3, 8, 1], [1, 3, 8, 4], new Set([8]))).toEqual([3, 1, 4]);
+  });
+});
+
+describe('closeMode', () => {
+  it('shows the × on hover on desktop, whatever the card', () => {
+    expect(closeMode('default', false)).toBe('hover');
+    expect(closeMode('active', false)).toBe('hover');
+  });
+
+  it('shows it only on the active card on the phone', () => {
+    expect(closeMode('active', true)).toBe('shown');
+    expect(closeMode('focused', true)).toBe('hidden');
+    expect(closeMode('default', true)).toBe('hidden');
   });
 });
 

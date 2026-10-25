@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { HooksConsentRequest } from '../../../core/src/messages.js';
-import { cardAgentIds, mergeOrder } from '../components/cardBar.js';
+import { cardOrderOf } from '../components/cardBar.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import { reconcileExistingAgents, staleAgentIds } from '../office/engine/existingAgents.js';
@@ -232,14 +232,14 @@ export function useExtensionMessages(
   /** Agent ids with a live PTY, in the order their terminals opened. */
   const [terminalAgentIds, setTerminalAgentIds] = useState<number[]>([]);
   /** Agents that are Teammates (they have a Lead). They get no card. */
-  const [teammateIds, setTeammateIds] = useState<number[]>([]);
+  const [teammateIds, setTeammateIds] = useState<ReadonlySet<number>>(new Set());
   const markTeammate = (id: number) =>
-    setTeammateIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setTeammateIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   const unmarkTeammate = (id: number) =>
-    setTeammateIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : prev));
+    setTeammateIds((prev) => (prev.has(id) ? new Set([...prev].filter((t) => t !== id)) : prev));
   const [cardOrder, setCardOrder] = useState<number[]>([]);
   const cardAgents = useMemo(
-    () => mergeOrder(cardOrder, cardAgentIds(agents, new Set(teammateIds))),
+    () => cardOrderOf(cardOrder, agents, teammateIds),
     [cardOrder, agents, teammateIds],
   );
   const saveCardOrder = useCallback((order: number[]) => {

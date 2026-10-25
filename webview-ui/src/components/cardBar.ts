@@ -1,5 +1,6 @@
-/** Pure rules shared by the agent card bars — highlight tier and the mobile
- *  bar's drag-to-reorder order (DOM-free, so they run on the Node runner). */
+/** Pure rules shared by the agent card bars — which agents get a card and in
+ *  what order, highlight tier, the ×, and drag-to-reorder (DOM-free, so they
+ *  run on the Node runner). */
 
 /** Card highlight tiers: 'focused' = the agent's character is selected in the
  *  office (active background, no border); 'active' = its terminal pane is the
@@ -18,12 +19,28 @@ export function cardVariant(
   return 'default';
 }
 
-/** The agents that get a card: main agents only. A Teammate is shown by its
- *  character beside its Lead, never as a card of its own. Returns `agents`
- *  itself when nothing is left out, so React sees no change. */
-export function cardAgentIds(agents: number[], teammateIds: ReadonlySet<number>): number[] {
-  if (!agents.some((id) => teammateIds.has(id))) return agents;
-  return agents.filter((id) => !teammateIds.has(id));
+/** How a card shows its ×: always, on hover, or not at all. */
+export type CloseMode = 'shown' | 'hover' | 'hidden';
+
+/** The × rule: on hover (desktop), or with `onlyWhenActive` (phone: a stray
+ *  tap must not close an agent) only on the active card. */
+export function closeMode(variant: CardVariant, onlyWhenActive: boolean): CloseMode {
+  if (!onlyWhenActive) return 'hover';
+  return variant === 'active' ? 'shown' : 'hidden';
+}
+
+/** The cards, in order: main agents only (a Teammate is shown by its
+ *  character beside its Lead, never as a card of its own), in the saved
+ *  order with new ones appended (mergeOrder). */
+export function cardOrderOf(
+  saved: readonly number[],
+  agents: readonly number[],
+  teammateIds: ReadonlySet<number>,
+): number[] {
+  return mergeOrder(
+    saved,
+    agents.filter((id) => !teammateIds.has(id)),
+  );
 }
 
 /** Saved order first (dropping closed agents), then any new agents appended
@@ -39,8 +56,9 @@ export function mergeOrder(saved: readonly number[], live: readonly number[]): n
 }
 
 /**
- * The order with `dragId` moved to where the finger is: before the first
- * other card whose horizontal midpoint lies right of `x`, else last.
+ * The order with `dragId` moved to where the pointer is: before the first
+ * other card whose midpoint along the bar's axis lies past `x` (the pointer's
+ * coordinate on that axis), else last.
  * `midpointOf` returns a card's midpoint in the same coordinate space as `x`
  * (null for a card that isn't laid out, which is skipped).
  */

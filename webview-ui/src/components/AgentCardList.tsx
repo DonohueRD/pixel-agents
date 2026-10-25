@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { CARD_SCROLL_INTO_VIEW_MARGIN_PX } from '../constants.js';
 import type { AgentAppearance, TabStatus } from './AgentCard.js';
 import { AgentCard } from './AgentCard.js';
-import { cardVariant } from './cardBar.js';
+import { cardVariant, closeMode } from './cardBar.js';
 import type { CardAxis } from './useCardReorder.js';
 import { useCardReorder } from './useCardReorder.js';
 
@@ -24,8 +24,7 @@ interface AgentCardListProps {
   activeAgentId: number | null;
   /** The agent whose character is selected in the office: tinted. */
   focusedAgentId: number | null;
-  /** Show the × only on the active card (phone: a stray tap must not close an
-   *  agent). Otherwise (desktop) it shows on hover. */
+  /** Show the × only on the active card (phone), else on hover (cardBar.ts `closeMode`). */
   closeOnlyWhenActive?: boolean;
   getAppearance: (agentId: number) => AgentAppearance;
   statusFor: (agentId: number) => TabStatus | null;
@@ -99,7 +98,7 @@ export function AgentCardList({
               variant={variant}
               appearance={getAppearance(agentId)}
               status={statusFor(agentId)}
-              close={!closeOnlyWhenActive ? 'hover' : variant === 'active' ? 'shown' : 'hidden'}
+              close={closeMode(variant, closeOnlyWhenActive)}
               onSelect={onSelect}
               onClose={onClose}
             />

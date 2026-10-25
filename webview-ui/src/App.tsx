@@ -381,14 +381,23 @@ function App() {
     [terminalAgentIds, isMobile, revealTerminal, showMobileTerminal],
   );
 
-  // Card click when there is no terminal pane to switch (VS Code, or a
-  // watch-only standalone session): ask the host to raise the agent's own
+  // Desktop card click. A card with a terminal pane is its tab: show that
+  // pane and select + follow the character. Without one (VS Code, or a
+  // watch-only standalone session) ask the host to raise the agent's own
   // terminal — VS Code shows the editor terminal, standalone has nothing to
   // show — and select its character so the office follows the click.
-  const handleCardSelect = useCallback((agentId: number) => {
-    transport.send({ type: 'focusAgent', id: agentId });
-    getOfficeState().selectAndFollow(agentId);
-  }, []);
+  const { select: selectTerminal } = terminalDrawer;
+  const handleCardSelect = useCallback(
+    (agentId: number) => {
+      if (terminalAgentIds.includes(agentId)) {
+        selectTerminal(agentId);
+        return;
+      }
+      transport.send({ type: 'focusAgent', id: agentId });
+      getOfficeState().selectAndFollow(agentId);
+    },
+    [terminalAgentIds, selectTerminal],
+  );
 
   const officeState = getOfficeState();
 
@@ -770,9 +779,7 @@ function App() {
               focusedAgentId={focusedAgentId}
               getAppearance={terminalDrawer.getAppearance}
               statusFor={terminalDrawer.statusFor}
-              onSelect={(id) =>
-                terminalAgentIds.includes(id) ? terminalDrawer.select(id) : handleCardSelect(id)
-              }
+              onSelect={handleCardSelect}
               onClose={handleCloseAgent}
               onReorder={officeReadOnly ? undefined : saveCardOrder}
               trailing={
