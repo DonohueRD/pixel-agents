@@ -4,6 +4,7 @@ import * as path from 'path';
 import { isDeepStrictEqual } from 'util';
 
 import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
+import { commandRunsScript } from './commandIdentity.js';
 import {
   CLAUDE_HOOK_EVENTS,
   CLAUDE_HOOK_SCRIPT_NAME,
@@ -14,6 +15,7 @@ import {
   SETTINGS_MUTATE_RETRY_DELAY_MS,
   SETTINGS_TMP_SUFFIX,
 } from './constants.js';
+import { isBareOurStatusLine } from './statusLineBridge.js';
 
 /** A single hook entry in Claude Code's ~/.claude/settings.json hooks config. */
 interface ClaudeHookEntry {
@@ -26,7 +28,7 @@ interface ClaudeHookEntry {
 }
 
 /** Partial shape of ~/.claude/settings.json (only the hooks field is relevant). */
-interface ClaudeSettings {
+export interface ClaudeSettings {
   hooks?: Record<string, ClaudeHookEntry[]>;
   [key: string]: unknown;
 }
@@ -125,7 +127,7 @@ function sleep(ms: number): Promise<void> {
  * first attempt: retrying a permission error just delays the same failure, and
  * the caller must hear about it rather than get a false "installed".
  */
-async function mutateClaudeSettings(
+export async function mutateClaudeSettings(
   mutate: (settings: ClaudeSettings) => boolean,
 ): Promise<boolean> {
   let lastError: Error | null = null;
@@ -297,12 +299,6 @@ const LEGACY_HOOK_PATH_SUFFIX = `/${LEGACY_HOOK_SCRIPT_NAME}`;
  *  and `my-pixel-agents-hook.js` match by substring. */
 const HOOK_PATH_SUFFIX = `/${HOOK_SCRIPTS_DIR}/${CLAUDE_HOOK_SCRIPT_NAME}`;
 
-/** Characters that end a path token in a shell command line. A path we own is
- *  either the whole token or ends at one of these; anything else after it
- *  (`.backup`, `.disabled`, more path segments) means the command names a
- *  DIFFERENT file that merely starts with our path. */
-const PATH_TERMINATORS = new Set([' ', '\t', '"', "'", ';', '&', '|', '>', '<', ')']);
-
 /**
  * Check if a single hook command is ours.
  *
@@ -354,46 +350,8 @@ const PATH_TERMINATORS = new Set([' ', '\t', '"', "'", ';', '&', '|', '>', '<', 
  *   hook for everyone if we resolved paths from a config file.
  */
 function isOurHookCommand(command: string): boolean {
-  const token = firstCommandToken(command);
-  if (token === null) return false;
-  // Both suffix constants are lower-case, so folding the token is the whole
-  // normalization.
-  const normalized = token.toLowerCase();
-  return normalized.endsWith(HOOK_PATH_SUFFIX) || normalized.endsWith(LEGACY_HOOK_PATH_SUFFIX);
-}
-
-/**
- * The ABSOLUTE path of the script a command runs, normalized to forward
- * slashes, or null when the command doesn't look like one of ours.
- *
- * `node "<path>"` and a bare `<path>` are the two shapes we write (and the two
- * a user plausibly hand-edits). A Windows drive prefix (`C:/…`) counts as
- * absolute; a relative path does not (see isOurHookCommand's contract).
- */
-function firstCommandToken(command: string): string | null {
-  const trimmed = command.trim();
-  // `node <script>` / `node "<script>"` — take the argument. The interpreter
-  // itself may be a path (quoted, and on Windows containing spaces).
-  const nodeInvocation = /^"?(?:[^"]*[/\\])?node(?:\.exe)?"?\s+(.+)$/.exec(trimmed);
-  const raw = nodeInvocation ? nodeInvocation[1] : trimmed;
-  const token = readToken(raw.trim());
-  if (token === null) return null;
-  const normalized = token.replace(/\\/g, '/');
-  const absolute = normalized.startsWith('/') || /^[a-zA-Z]:\//.test(normalized);
-  return absolute ? normalized : null;
-}
-
-/** Read one shell token: a quoted string, or characters up to the first
- *  terminator. Returns null when the token is empty or unterminated. */
-function readToken(raw: string): string | null {
-  const quote = raw[0];
-  if (quote === '"' || quote === "'") {
-    const end = raw.indexOf(quote, 1);
-    return end > 1 ? raw.slice(1, end) : null;
-  }
-  let end = 0;
-  while (end < raw.length && !PATH_TERMINATORS.has(raw[end])) end++;
-  return end > 0 ? raw.slice(0, end) : null;
+  // Both suffix constants are lower-case, as commandRunsScript requires.
+  return commandRunsScript(command, [HOOK_PATH_SUFFIX, LEGACY_HOOK_PATH_SUFFIX]);
 }
 
 /** Whether any command in the entry is ours (used by areHooksInstalled). */
@@ -445,7 +403,11 @@ function isOurHook(hook: ClaudeHookEntry['hooks'][number]): boolean {
  *  suffix rule used everywhere else) and `timeout`. Deviation in anything
  *  else, present or added later, reads as the user's. */
 function settingsHoldOnlyOurHooks(settings: ClaudeSettings): boolean {
-  if (Object.keys(settings).some((key) => key !== 'hooks')) return false;
+  // The status line bridge, when install wrote it into a file with no status
+  // line (our command wrapping nothing), is our output too.
+  const ours = (key: string) =>
+    key === 'hooks' || (key === 'statusLine' && isBareOurStatusLine(settings.statusLine));
+  if (Object.keys(settings).some((key) => !ours(key))) return false;
   if (!('hooks' in settings)) return true;
   const hooks = settings.hooks;
   if (hooks === null || typeof hooks !== 'object' || Array.isArray(hooks)) {
@@ -726,8 +688,14 @@ export async function uninstallHooks(): Promise<void> {
  *  copy failed, so callers can report the failure instead of logging a false
  *  success (issue #333: a path regression silently installed nothing). */
 export function copyHookScript(extensionPath: string): boolean {
-  const src = path.join(extensionPath, 'dist', 'hooks', CLAUDE_HOOK_SCRIPT_NAME);
-  const dst = getHookScriptPath();
+  return copyBundledScript(extensionPath, CLAUDE_HOOK_SCRIPT_NAME);
+}
+
+/** Copy one bundled script (`dist/hooks/<name>`) to ~/.pixel-agents/hooks/<name>,
+ *  with copyHookScript's contract: false when it could not be copied. */
+export function copyBundledScript(extensionPath: string, name: string): boolean {
+  const src = path.join(extensionPath, 'dist', 'hooks', name);
+  const dst = path.join(os.homedir(), HOOK_SCRIPTS_DIR, name);
   const dstDir = path.dirname(dst);
 
   try {
@@ -735,15 +703,15 @@ export function copyHookScript(extensionPath: string): boolean {
       fs.mkdirSync(dstDir, { recursive: true, mode: 0o700 });
     }
     if (!fs.existsSync(src)) {
-      console.warn(`[Pixel Agents] Hook script not found at ${src}`);
+      console.warn(`[Pixel Agents] Script not found at ${src}`);
       return false;
     }
     fs.copyFileSync(src, dst);
     fs.chmodSync(dst, 0o700);
-    console.log(`[Pixel Agents] Hook script installed at ${dst}`);
+    console.log(`[Pixel Agents] Script installed at ${dst}`);
     return true;
   } catch (e) {
-    console.error(`[Pixel Agents] Failed to copy hook script: ${e}`);
+    console.error(`[Pixel Agents] Failed to copy ${name}: ${e}`);
     return false;
   }
 }

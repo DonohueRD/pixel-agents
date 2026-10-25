@@ -60,6 +60,11 @@ import {
 } from '../../server/src/providers/index.js';
 import { PixelAgentsServer } from '../../server/src/server.js';
 import {
+  applyUsageBridgeChoice,
+  usageBridgeStatusMessage,
+  usageLimitsMessage,
+} from '../../server/src/usageLimits.js';
+import {
   getProjectDirPath,
   launchNewTerminal,
   restoreAgents,
@@ -274,6 +279,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (hooksEnabled) {
           void this.installHooksIfConsented(config.port, config.token);
         }
+        // An installed usage bridge runs the script from ~/.pixel-agents/hooks/:
+        // bring it up to this version's copy.
+        claudeProvider.usageBridge?.refreshScript(this.context.extensionPath);
         console.log(`[Pixel Agents] Server: ready on port ${config.port}`);
       })
       .catch((e) => {
@@ -539,6 +547,20 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // junk consent choice.
         const provider = hookProviderById(message.providerId);
         if (provider) void this.setHooksEnabled(provider, message.enabled as boolean);
+      } else if (message.type === 'setUsageBridgeEnabled') {
+        const provider = hookProviderById(message.providerId);
+        if (provider?.usageBridge && typeof message.enabled === 'boolean') {
+          void applyUsageBridgeChoice(
+            provider,
+            this.context.extensionPath,
+            message.enabled as boolean,
+          ).then((status) => {
+            if (status.error) {
+              vscode.window.showErrorMessage(`Pixel Agents: ${String(status.error)}`);
+            }
+            this.sendOrBuffer(status);
+          });
+        }
       } else if (message.type === 'hooksConsentResponse') {
         const provider = hookProviderById(message.providerId);
         if (provider) {
@@ -724,6 +746,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             provider,
           );
           if (consentRequest) this.webview?.postMessage(consentRequest);
+        }
+
+        // Usage bars: install state and the last known account usage.
+        for (const provider of hookProviders) {
+          if (!provider.usageBridge) continue;
+          this.webview?.postMessage(usageBridgeStatusMessage(provider));
+          this.webview?.postMessage(usageLimitsMessage(provider.id));
         }
 
         // Directory→Area mappings (must arrive before any agentCreated/existingAgents

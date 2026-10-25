@@ -61,6 +61,9 @@ export interface AgentState {
   /** True once this transcript produced a main-chain turn, after which
    *  sidechain records belong to sub-agents and stop moving the gauge. */
   sawMainChainUsage?: boolean;
+  /** The window the CLI itself reported for this session (usage bridge);
+   *  preferred over the model's window and the estimate once known. */
+  reportedContextWindow?: number;
 
   // -- Agent Teams --
   teamName?: string;
