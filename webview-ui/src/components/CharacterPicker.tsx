@@ -42,8 +42,9 @@ interface CharacterRowProps {
   isOpen?: boolean;
   className?: string;
   /** Draw a scrollbar both above and below the cards, kept in step (the
-   *  desktop roster), with these classes on the row of cards itself. */
-  edgeScrollbars?: { rowClassName?: string };
+   *  desktop roster): `rowClassName` goes on the row of cards itself,
+   *  `mirrorClassName` on the bar below (`className` styles the one above). */
+  edgeScrollbars?: { rowClassName?: string; mirrorClassName?: string };
 }
 
 /**
@@ -95,7 +96,9 @@ export function CharacterRow({
             <RosterCards recent={recent} dpr={dpr} onPick={onPick} onEdit={onEdit} onNew={onNew} />
           </div>
         </div>
-        {overflows && <MirrorScrollbar target={scrollerRef} className={className} />}
+        {overflows && (
+          <MirrorScrollbar target={scrollerRef} className={edgeScrollbars.mirrorClassName ?? ''} />
+        )}
       </>
     );
   }
@@ -128,8 +131,8 @@ function useOverflowsX(ref: RefObject<HTMLDivElement | null>, active: boolean): 
 /**
  * A bare horizontal scrollbar that moves in step with `target`'s: an empty
  * scroller as wide as the target, holding a spacer as long as the target's
- * content. Each one's scroll sets the other's. Takes the target's classes so
- * it draws the same bar, with the target's bottom padding turned to the top:
+ * content. Each one's scroll sets the other's. Its caller gives it the
+ * target's bar classes, with the target's bottom padding as top padding, so
  * the gap between bar and cards is the same on both sides.
  */
 function MirrorScrollbar({
@@ -170,7 +173,7 @@ function MirrorScrollbar({
     <div
       ref={ref}
       aria-hidden="true"
-      className={`overflow-x-scroll overflow-y-hidden ${className.replace(/\bpb-/g, 'pt-')}`}
+      className={`overflow-x-scroll overflow-y-hidden ${className}`}
     >
       <div style={{ width: contentWidth, height: 1 }} />
     </div>

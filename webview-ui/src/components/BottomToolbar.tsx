@@ -122,9 +122,13 @@ export function BottomToolbar({
             onEdit={menus.edit}
             onNew={menus.addNew}
             isOpen={menus.isRosterOpen}
-            // A scrollbar above and below the cards, drawn like the sidebar's.
+            // A scrollbar above and below the cards, drawn like the sidebar's,
+            // the same gap from the cards on both sides.
             className="quiet-scrollbar-x pb-4"
-            edgeScrollbars={{ rowClassName: 'fade-stagger' }}
+            edgeScrollbars={{
+              rowClassName: 'fade-stagger',
+              mirrorClassName: 'quiet-scrollbar-x pt-4',
+            }}
           />
         </div>
       )}
