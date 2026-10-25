@@ -1,18 +1,19 @@
 import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
 
 import {
+  MOBILE_PASTE_PROMPT,
   TERMINAL_FONT_FAMILY,
   TERMINAL_FONT_SIZE_PX,
   TERMINAL_RESIZE_DEBOUNCE_MS,
   TERMINAL_SCROLLBACK_LINES,
   TERMINAL_THEME,
-  TERMINAL_URL_PATTERN,
 } from '../constants.js';
+import { readClipboardText } from '../terminal/clipboard.js';
 import { attachClipboardInput } from '../terminal/clipboardInput.js';
+import { terminalLinkProvider } from '../terminal/linkProvider.js';
 import type { TerminalConnectionStatus } from '../terminal/terminalClient.js';
 import { TerminalConnection } from '../terminal/terminalClient.js';
 import { isTypingInTerminal } from '../terminal/terminalDom.js';
@@ -21,10 +22,9 @@ import { attachTouchInput } from '../terminal/touchInput.js';
 
 interface TerminalPaneProps {
   agentId: number;
-  /** Hidden panes stay mounted so their xterm buffer and socket survive tab
-   *  switches — unmounting would drop the scrollback and force a reconnect. */
+  /** Whether this pane is the one shown (hidden ones are display:none). */
   isActive: boolean;
-  onStatusChange?: (agentId: number, status: TerminalConnectionStatus) => void;
+  onStatusChange?: (agentId: number, status: TerminalConnectionStatus | null) => void;
   /** Override the terminal font size (mobile uses a smaller face for columns). */
   fontSizePx?: number;
   /** Focus xterm when the pane opens/activates. Mobile passes false: focusing
@@ -97,8 +97,10 @@ export function TerminalPane({
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    // Plain URLs printed as text (most of what an agent prints) become clickable.
-    term.loadAddon(new WebLinksAddon(openLink, { urlRegex: TERMINAL_URL_PATTERN }));
+    // Plain URLs printed as text (most of what an agent prints) become
+    // clickable, whole even where Claude Code broke one across rows: the
+    // same lookup a tap uses (terminalLinks.ts).
+    term.registerLinkProvider(terminalLinkProvider(term, openLink));
     termRef.current = term;
     fitRef.current = fit;
 
@@ -134,10 +136,20 @@ export function TerminalPane({
     });
 
     // Touch: scroll + flick, tap to focus / open a URL, long-press selection
-    // with handles and a copy pill (see touchGesture.ts for the why).
+    // with handles and a copy pill, or Paste in the input area (see
+    // touchGesture.ts for the why).
     const detachTouch = attachTouchInput(term, host, {
       openLink,
       fallbackRowHeightPx: fontSizePx,
+      // Read inside the pill's click, which keeps the user activation iOS
+      // requires; Safari may still show its paste callout the first time. A
+      // no-op when that is dismissed (or the plain-http prompt) or the
+      // clipboard is empty.
+      onPaste: () => {
+        void readClipboardText(MOBILE_PASTE_PROMPT).then((text) => {
+          if (text) term.paste(text);
+        });
+      },
     });
 
     // Debounced: ResizeObserver fires per frame during a drag, and every resize
@@ -197,6 +209,9 @@ export function TerminalPane({
       detachClipboard();
       observer.disconnect();
       registerInputRef.current?.(agentId, null);
+      // dispose() reports nothing, so a pane torn down mid-reconnect would
+      // otherwise leave its card flagged red.
+      statusRef.current?.(agentId, null);
       connection.dispose();
       term.dispose();
       termRef.current = null;
