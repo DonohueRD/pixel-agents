@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { StateAdapter } from '../../core/src/adapter.js';
+import type { PersistedAgent } from '../../core/src/schemas.js';
 import { AgentStateStore } from '../src/agentStateStore.js';
-import type { AgentState, PersistedAgent } from '../src/types.js';
+import type { AgentState } from '../src/types.js';
 
 function createMockAdapter(): StateAdapter {
   return {

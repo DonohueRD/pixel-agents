@@ -2,7 +2,7 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 import type { HookProvider } from '../../core/src/provider.js';
 import type { AgentStateStore } from './agentStateStore.js';
-import { completedSpawnToolIds, spawnToolIdOfTask } from './backgroundSpawns.js';
+import { completedSpawnToolIds, completionNotice, launchSpawn } from './backgroundSpawns.js';
 import { TEXT_IDLE_DELAY_MS, TOOL_DONE_DELAY_MS } from './constants.js';
 import { updateContextUsage } from './contextUsage.js';
 import { hasInlineTeammates, hasPromotedBackgroundAgent } from './teamUtils.js';
@@ -336,14 +336,10 @@ export function processTranscriptLine(
                       block.content,
                     )
                   : null;
-              if (
-                launch &&
-                !(launch.taskId && spawnToolIdOfTask(agent.backgroundSpawns, launch.taskId))
-              ) {
+              if (launch && launchSpawn(agent.backgroundSpawns, completedToolId, launch.taskId)) {
                 console.log(
                   `[Pixel Agents] Agent ${agentId} background agent launched: ${completedToolId}${launch.taskId ? ` (${launch.taskId})` : ''}`,
                 );
-                agent.backgroundSpawns.set(completedToolId, { taskId: launch.taskId });
                 // Current harnesses OMIT run_in_background from the tool_use
                 // input, so the spawn's original agentToolStart went out
                 // unflagged. Re-broadcast it flagged now that the result
@@ -424,7 +420,7 @@ export function processTranscriptLine(
       // Background agents finished. A notice names them by spawn tool id, by
       // agent (task) id, or both; a crash notice lists several task ids at
       // once with status "stopped" (they died with the process).
-      const content = record.content as string | undefined;
+      const content = completionNotice(record);
       if (content) {
         for (const completedToolId of completedSpawnToolIds(agent.backgroundSpawns, content)) {
           console.log(`[Pixel Agents] Agent ${agentId} background agent done: ${completedToolId}`);

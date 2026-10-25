@@ -132,8 +132,9 @@ export class AgentRuntime {
       // Unnamed spawns live in the shadow store; the webview sub-character is
       // cleared by the lead-side queue-op subagentClear, not by this call.
       this.subagentWatch.removeBySpawn(leadId, toolUseId);
-      // Save at once: a restart before the next save would restore the
-      // finished spawn, and nothing would ever end it.
+      // Save at once, so the saved list stops naming the finished spawn. (A
+      // notice written while no server was running is caught on restore
+      // instead, by stillRunningSpawns reading the transcript.)
       this.store.persist();
     });
     // A resumed lead that spawns again belongs to a freshly minted implicit

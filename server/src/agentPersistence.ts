@@ -56,8 +56,9 @@ export function restoredAgentInit(p: PersistedAgent): Omit<AgentStateInit, 'isEx
     projectDir: p.projectDir,
     jsonlFile: p.jsonlFile,
     // Live spawns survive the reload so the 1 s scan can re-adopt their
-    // transcripts and the completion queue-operation still matches; ones
-    // that finished before the last save caught up are dropped.
+    // transcripts and the completion queue-operation still matches. Ones
+    // whose completion is already in the transcript are dropped: the save on
+    // completion can't cover a notice written while no server was running.
     backgroundSpawns: stillRunningSpawns(restoreBackgroundSpawns(p), p.jsonlFile),
     directoryName: p.directoryName ?? p.folderName,
     teamName: p.teamName,

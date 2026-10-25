@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import type { HookProvider } from '../../../core/src/provider.js';
+import type { PersistedAgent } from '../../../core/src/schemas.js';
 import { restoredAgentInit } from '../agentPersistence.js';
 import type { AgentRuntime } from '../agentRuntime.js';
 import { createAgentState } from '../agentState.js';
@@ -160,12 +161,17 @@ export function reattachTerminalAgents(deps: LaunchStandaloneAgentDeps): number[
       continue;
     }
 
+    // The restore is built from the saved record (its finished-spawn check
+    // reads the saved transcript path); only where the transcript lives is
+    // taken from the relocated one.
+    const { jsonlFile, projectDir } = relocatedRecord(deps.provider, record);
     const agent = createAgentState({
       ...restoredAgentInit(record),
+      jsonlFile,
+      projectDir,
       isExternal: false,
       providerId: deps.provider.id,
     });
-    relocateTranscript(deps.provider, agent);
     try {
       agent.fileOffset = fs.statSync(agent.jsonlFile).size;
     } catch {
@@ -182,15 +188,16 @@ export function reattachTerminalAgents(deps: LaunchStandaloneAgentDeps): number[
 }
 
 /**
- * Point a reattached agent at its transcript when it isn't where the saved
- * record says. Older servers saved the path under the Directory as given, but
- * the CLI files it under the symlink-resolved path, so such an agent never got
- * its transcript (and none of its sub-agents) watched. The session id is a
- * UUID, so the one `<sessionId>.jsonl` under the session roots is its own.
+ * The saved record with its transcript where it really is, when that isn't
+ * where the record says. Older servers saved the path under the Directory as
+ * given, but the CLI files it under the symlink-resolved path, so such an
+ * agent never got its transcript (and none of its sub-agents) watched. The
+ * session id is a UUID, so the one `<sessionId>.jsonl` under the session roots
+ * is its own. Returns the record itself when nothing moved.
  */
-function relocateTranscript(provider: HookProvider, agent: AgentState): void {
-  if (fs.existsSync(agent.jsonlFile)) return;
-  const name = path.basename(agent.jsonlFile);
+function relocatedRecord(provider: HookProvider, record: PersistedAgent): PersistedAgent {
+  if (fs.existsSync(record.jsonlFile)) return record;
+  const name = path.basename(record.jsonlFile);
   for (const root of provider.getAllSessionRoots?.() ?? []) {
     let dirs: string[];
     try {
@@ -201,12 +208,11 @@ function relocateTranscript(provider: HookProvider, agent: AgentState): void {
     for (const dir of dirs) {
       const file = path.join(root, dir, name);
       if (!fs.existsSync(file)) continue;
-      console.log(`[Pixel Agents] Terminal: Agent ${agent.id} - transcript found at ${file}`);
-      agent.jsonlFile = file;
-      agent.projectDir = path.dirname(file);
-      return;
+      console.log(`[Pixel Agents] Terminal: Agent ${record.id} - transcript found at ${file}`);
+      return { ...record, jsonlFile: file, projectDir: path.dirname(file) };
     }
   }
+  return record;
 }
 
 /** What every agent with a terminal gets, launched or reattached: a place in

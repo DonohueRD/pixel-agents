@@ -32,7 +32,7 @@ import type { TeamProvider } from '../../core/src/teamProvider.js';
 import type { ITerminalAdapter } from '../../core/src/terminalAdapter.js';
 import { createAgentState } from './agentState.js';
 import type { AgentStateStore } from './agentStateStore.js';
-import { spawnToolIdOfTask } from './backgroundSpawns.js';
+import { classifySpawn, spawnToolIdOfTask } from './backgroundSpawns.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   EXTERNAL_ACTIVE_THRESHOLD_MS,
@@ -636,6 +636,7 @@ export function scanForTeammateFiles(
   // teamName lets the provider also find new-style teammates: independent
   // top-level sessions tagged with the team, not files under the lead's dir.
   const teammates = teamProvider.discoverTeammates(projectDir, sessionId, parentAgent?.teamName);
+  const parentLive = parentAgent ? liveSpawnToolIds(parentAgent) : null;
 
   for (const teammate of teammates) {
     const { jsonlPath: file, teammateName, sessionId: ownSessionId } = teammate;
@@ -643,7 +644,7 @@ export function scanForTeammateFiles(
     // classifies them by name: named background -> teammate, everything else
     // -> watched sub-agent. Adopting them here would race that classification
     // and mint a spurious teammate.
-    if (parentAgent && liveSpawnToolIdOf(parentAgent, teammate)) continue;
+    if (parentAgent && parentLive && liveSpawnToolIdOf(parentAgent, parentLive, teammate)) continue;
     if (knownTeammateFiles.has(file)) continue;
 
     // Also check if any existing agent already tracks this file
@@ -757,15 +758,20 @@ export function scanForTeammateFiles(
   }
 }
 
-/** Whether a tool id is one of a lead's LIVE spawns: a background spawn
- *  (kept alive past its tool_result, until the completion queue-operation) or
- *  a still-open foreground spawn tool (Agent run_in_background:false — same
- *  sidecar shape on current harnesses, closes with its tool_result). Sidecars
- *  of live spawns belong to the background-agent flow, not teammate discovery. */
-function isLiveSpawnTool(lead: AgentState, toolId: string): boolean {
-  if (lead.backgroundSpawns.has(toolId)) return true;
-  const toolName = lead.activeToolIds.has(toolId) ? lead.activeToolNames.get(toolId) : undefined;
-  return !!toolName && !!hookProvider?.subagentToolNames.has(toolName);
+/** A lead's LIVE spawn tool ids: its background spawns (kept alive past their
+ *  tool_result, until the completion queue-operation) and its still-open
+ *  foreground spawn tools (Agent run_in_background:false — same sidecar shape
+ *  on current harnesses, closes with its tool_result). Sidecars of live spawns
+ *  belong to the background-agent flow, not teammate discovery. */
+function liveSpawnToolIds(lead: AgentState): Set<string> {
+  const ids = new Set(lead.backgroundSpawns.keys());
+  for (const toolId of lead.activeToolIds) {
+    const toolName = lead.activeToolNames.get(toolId);
+    if (toolName && hookProvider?.subagentToolNames.has(toolName)) {
+      ids.add(toolId);
+    }
+  }
+  return ids;
 }
 
 /** The live spawn tool a discovered transcript runs under: its own spawn's,
@@ -773,9 +779,10 @@ function isLiveSpawnTool(lead: AgentState, toolId: string): boolean {
  *  the agent's task id, since its sidecar still names the original spawn. */
 function liveSpawnToolIdOf(
   lead: AgentState,
+  live: Set<string>,
   entry: { toolUseId?: string; taskId?: string },
 ): string | undefined {
-  if (entry.toolUseId && isLiveSpawnTool(lead, entry.toolUseId)) return entry.toolUseId;
+  if (entry.toolUseId && live.has(entry.toolUseId)) return entry.toolUseId;
   return entry.taskId ? spawnToolIdOfTask(lead.backgroundSpawns, entry.taskId) : undefined;
 }
 
@@ -816,23 +823,20 @@ export function scanForBackgroundAgentFiles(
   if (!teamProvider) return;
   const lead = agents.get(leadId);
   if (!lead || !lead.sessionId || !lead.projectDir) return;
-  const hasLiveSpawn =
-    lead.backgroundSpawns.size > 0 ||
-    [...lead.activeToolIds].some((toolId) => isLiveSpawnTool(lead, toolId));
-  if (!hasLiveSpawn) return;
+  const live = liveSpawnToolIds(lead);
+  if (live.size === 0) return;
 
   const entries = teamProvider.discoverTeammates(lead.projectDir, lead.sessionId);
   for (const sidecar of entries) {
-    const spawnToolId = liveSpawnToolIdOf(lead, sidecar);
+    // The spawn is known by its LIVE tool id: the SendMessage call that
+    // revived it, when the sidecar's own spawn is long gone.
+    const spawnToolId = liveSpawnToolIdOf(lead, live, sidecar);
     if (!spawnToolId) continue;
-    // From here on the spawn is known by its LIVE tool id: the SendMessage
-    // call that revived it, when the sidecar's own spawn is long gone.
-    const entry = { ...sidecar, toolUseId: spawnToolId };
 
-    let alreadyTracked = subagentWatch?.isWatching(entry.jsonlPath) ?? false;
+    let alreadyTracked = subagentWatch?.isWatching(sidecar.jsonlPath) ?? false;
     if (!alreadyTracked) {
       for (const a of agents.values()) {
-        if (pathsMatch(a.jsonlFile, entry.jsonlPath)) {
+        if (pathsMatch(a.jsonlFile, sidecar.jsonlPath)) {
           alreadyTracked = true;
           break;
         }
@@ -840,26 +844,15 @@ export function scanForBackgroundAgentFiles(
     }
     if (alreadyTracked) continue;
 
-    // Foreground spawns (Agent run_in_background:false — the tool stays open
-    // for the whole run) write the same sidecar shape. They are within-turn
-    // work whatever the sidecar says: watch them, never seat them.
-    const launched = lead.backgroundSpawns.has(entry.toolUseId);
-
-    // A named spawn call is a Teammate-to-be, but its sidecar can land before
-    // its "Async agent launched" result. Deciding now would take it for
-    // in-turn work and watch it as a Sub-agent for good. Wait: the result's
-    // arrival rescans.
-    if (!launched && lead.teammateSpawnToolIds?.has(entry.toolUseId)) continue;
-
-    const isForeground = !launched;
-
-    if (!entry.name || isForeground) {
-      // Unnamed spawn = Sub-agent: keep the Subtask character, watch the
-      // transcript in the shadow store for live activity. No agentCreated, no
-      // subagentClear, no persistence.
+    const kind = classifySpawn(lead, spawnToolId, !!sidecar.name);
+    if (kind === 'wait') continue;
+    if (kind === 'subagent') {
+      // Sub-agent: keep the Subtask character, watch the transcript in the
+      // shadow store for live activity. No agentCreated, no subagentClear, no
+      // persistence.
       subagentWatch?.watch(lead, leadId, {
-        jsonlPath: entry.jsonlPath,
-        toolUseId: entry.toolUseId,
+        jsonlPath: sidecar.jsonlPath,
+        toolUseId: spawnToolId,
       });
       continue;
     }
@@ -873,12 +866,12 @@ export function scanForBackgroundAgentFiles(
       sessionId: lead.sessionId,
       isExternal: true,
       projectDir: lead.projectDir,
-      jsonlFile: entry.jsonlPath,
+      jsonlFile: sidecar.jsonlPath,
       lastDataAt: Date.now(),
       // Teammate-like linkage, but NO teamName: config polling must not touch these.
-      agentName: entry.name,
+      agentName: sidecar.name,
       leadAgentId: leadId,
-      spawnToolUseId: entry.toolUseId,
+      spawnToolUseId: spawnToolId,
     });
 
     if (lead.palette !== undefined) {
@@ -906,17 +899,17 @@ export function scanForBackgroundAgentFiles(
     persistAgents();
 
     console.log(
-      `[Pixel Agents] Background teammate detected: "${agent.agentName}" (Agent ${id}) for lead Agent ${leadId} (${path.basename(entry.jsonlPath)})`,
+      `[Pixel Agents] Background teammate detected: "${agent.agentName}" (Agent ${id}) for lead Agent ${leadId} (${path.basename(sidecar.jsonlPath)})`,
     );
 
     // The transient Subtask sub-character is superseded by this real character.
-    agents.broadcast({ type: 'subagentClear', id: leadId, parentToolId: entry.toolUseId });
+    agents.broadcast({ type: 'subagentClear', id: leadId, parentToolId: spawnToolId });
 
     onAgentCreated?.(agent);
 
     startFileWatching(
       id,
-      entry.jsonlPath,
+      sidecar.jsonlPath,
       agents,
       fileWatchers,
       pollingTimers,

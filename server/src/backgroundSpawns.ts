@@ -19,6 +19,50 @@ export function spawnToolIdOfTask(spawns: BackgroundSpawns, taskId: string): str
   return undefined;
 }
 
+/**
+ * Record a launched background agent under the tool id it runs by. A result
+ * naming an agent (task id) that is already live starts nothing: returns
+ * false and leaves the map alone.
+ */
+export function launchSpawn(spawns: BackgroundSpawns, toolId: string, taskId?: string): boolean {
+  if (taskId && spawnToolIdOfTask(spawns, taskId)) return false;
+  spawns.set(toolId, { taskId });
+  return true;
+}
+
+/** A completion notice's content: an enqueue queue-operation whose string
+ *  content names the finished spawns (see completedSpawnToolIds). Anything
+ *  else is not a notice. */
+export function completionNotice(record: {
+  type?: unknown;
+  operation?: unknown;
+  content?: unknown;
+}): string | null {
+  if (record.type !== 'queue-operation' || record.operation !== 'enqueue') return null;
+  return typeof record.content === 'string' ? record.content : null;
+}
+
+/** How a lead's live spawn is taken once its sidecar shows up (CONTEXT.md:
+ *  the name is the sole Sub-agent vs Teammate distinction). */
+export function classifySpawn(
+  lead: { backgroundSpawns: BackgroundSpawns; teammateSpawnToolIds?: ReadonlySet<string> },
+  spawnToolId: string,
+  named: boolean,
+): 'wait' | 'subagent' | 'teammate' {
+  const launched = lead.backgroundSpawns.has(spawnToolId);
+  // A named spawn call is a Teammate-to-be, but its sidecar can land before
+  // its "Async agent launched" result. Deciding now would take it for
+  // in-turn work and watch it as a Sub-agent for good. Wait: the result's
+  // arrival rescans.
+  if (!launched && lead.teammateSpawnToolIds?.has(spawnToolId)) return 'wait';
+  // Foreground spawns (Agent run_in_background:false — the tool stays open
+  // for the whole run) write the same sidecar shape. They are within-turn
+  // work whatever the sidecar says: watch them, never seat them. Unnamed
+  // background spawns are Sub-agents too; only a named launched one is a
+  // Teammate.
+  return named && launched ? 'teammate' : 'subagent';
+}
+
 /** The persisted form: omitted when there is nothing live. */
 export function persistBackgroundSpawns(
   spawns: BackgroundSpawns,
@@ -38,7 +82,8 @@ export function restoreBackgroundSpawns(p: PersistedAgent): BackgroundSpawns {
 
 /** The live spawns a completion notice (a queue-operation's content) names,
  *  by spawn tool id or by task (agent) id. Ids it names that aren't live are
- *  ignored. */
+ *  ignored. The `<tool-use-id>` / `<task-id>` tags are Claude Code's notice
+ *  format (like the file-fallback parser around it). */
 export function completedSpawnToolIds(spawns: BackgroundSpawns, content: string): Set<string> {
   const done = new Set<string>();
   for (const m of content.matchAll(/<tool-use-id>(.*?)<\/tool-use-id>/g)) {
@@ -72,14 +117,14 @@ export function stillRunningSpawns(spawns: BackgroundSpawns, jsonlFile: string):
   const launched = new Set<string>();
   for (const line of text.split('\n')) {
     if (line.includes('"queue-operation"')) {
-      let record: { type?: unknown; operation?: unknown; content?: unknown };
+      let notice: string | null;
       try {
-        record = JSON.parse(line) as typeof record;
+        notice = completionNotice(JSON.parse(line) as Parameters<typeof completionNotice>[0]);
       } catch {
         continue;
       }
-      if (record.operation !== 'enqueue' || typeof record.content !== 'string') continue;
-      for (const toolId of completedSpawnToolIds(live, record.content)) live.delete(toolId);
+      if (notice === null) continue;
+      for (const toolId of completedSpawnToolIds(live, notice)) live.delete(toolId);
       continue;
     }
     for (const [toolId, spawn] of spawns) {

@@ -90,5 +90,3 @@ export interface AgentState {
   /** Hue shift in degrees (0-360). Rotates the base palette colors. */
   hueShift?: number;
 }
-
-export type { PersistedAgent } from '../../core/src/schemas.js';

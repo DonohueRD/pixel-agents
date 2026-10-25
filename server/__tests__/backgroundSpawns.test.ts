@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { restoredAgentInit } from '../src/agentPersistence.js';
 import type { BackgroundSpawns } from '../src/backgroundSpawns.js';
-import { stillRunningSpawns } from '../src/backgroundSpawns.js';
+import {
+  classifySpawn,
+  completionNotice,
+  launchSpawn,
+  stillRunningSpawns,
+} from '../src/backgroundSpawns.js';
 
 const launch = (toolId: string, taskId: string) =>
   JSON.stringify({
@@ -86,5 +91,67 @@ describe('stillRunningSpawns: a restored lead drops spawns that finished before 
       backgroundSpawns: [{ toolId: 'toolu_a', taskId: 'task-a' }],
     });
     expect(init.backgroundSpawns?.size).toBe(0);
+  });
+});
+
+describe('launchSpawn', () => {
+  it('records a launch under its tool id, with the task id it names', () => {
+    const spawns: BackgroundSpawns = new Map();
+    expect(launchSpawn(spawns, 'toolu_a', 'task-a')).toBe(true);
+    expect(launchSpawn(spawns, 'toolu_b')).toBe(true);
+    expect([...spawns]).toEqual([
+      ['toolu_a', { taskId: 'task-a' }],
+      ['toolu_b', { taskId: undefined }],
+    ]);
+  });
+
+  it('starts nothing for a result naming a task that is already live', () => {
+    const spawns: BackgroundSpawns = new Map([['toolu_a', { taskId: 'task-a' }]]);
+    expect(launchSpawn(spawns, 'toolu_msg', 'task-a')).toBe(false);
+    expect([...spawns.keys()]).toEqual(['toolu_a']);
+  });
+});
+
+describe('completionNotice', () => {
+  it('is the content of an enqueue queue-operation', () => {
+    expect(completionNotice({ type: 'queue-operation', operation: 'enqueue', content: 'x' })).toBe(
+      'x',
+    );
+  });
+
+  it('is null for anything else', () => {
+    expect(completionNotice({ type: 'queue-operation', operation: 'dequeue', content: 'x' })).toBe(
+      null,
+    );
+    expect(completionNotice({ type: 'user', operation: 'enqueue', content: 'x' })).toBe(null);
+    expect(completionNotice({ type: 'queue-operation', operation: 'enqueue', content: [] })).toBe(
+      null,
+    );
+    expect(completionNotice({ type: 'queue-operation', operation: 'enqueue' })).toBe(null);
+  });
+});
+
+describe('classifySpawn', () => {
+  const lead = (launched: string[], namedCalls: string[] = []) => ({
+    backgroundSpawns: new Map(launched.map((id) => [id, {}])) as BackgroundSpawns,
+    teammateSpawnToolIds: new Set(namedCalls),
+  });
+
+  it('a named, launched spawn is a Teammate', () => {
+    expect(classifySpawn(lead(['t']), 't', true)).toBe('teammate');
+  });
+
+  it('an unnamed launched spawn is a Sub-agent', () => {
+    expect(classifySpawn(lead(['t']), 't', false)).toBe('subagent');
+  });
+
+  it('a foreground (never launched) spawn is a Sub-agent, named or not', () => {
+    expect(classifySpawn(lead([]), 't', true)).toBe('subagent');
+    expect(classifySpawn(lead([]), 't', false)).toBe('subagent');
+  });
+
+  it('a named spawn call waits for its launch result', () => {
+    expect(classifySpawn(lead([], ['t']), 't', true)).toBe('wait');
+    expect(classifySpawn(lead(['t'], ['t']), 't', true)).toBe('teammate');
   });
 });
