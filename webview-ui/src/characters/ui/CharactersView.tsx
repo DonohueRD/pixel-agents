@@ -22,10 +22,11 @@ import {
   CHARACTERS_VIEW_Z_INDEX,
 } from '../../constants.js';
 import { type BoxSize, useBoxSize } from '../../hooks/useBoxSize.js';
+import { useDevicePixelRatio } from '../../hooks/useDevicePixelRatio.js';
 import { castStore, useCast } from '../castStore.js';
 import { FRAME_COUNT, SHEET_H, SHEET_W } from '../sheet.js';
 import { type ColorKey, type TabKey, tabPiece, TABS, wornPieces } from '../slots.js';
-import { FRAME_H, useCanvasSnapping, useDevicePixelRatio } from './pixelCanvas.js';
+import { FRAME_H, useCanvasSnapping } from './pixelCanvas.js';
 import { HistoryButtons, PhoneDock, RosterPane } from './Roster.js';
 import { SaveButton } from './SaveButton.js';
 import { Stage, type StageScales } from './Stage.js';

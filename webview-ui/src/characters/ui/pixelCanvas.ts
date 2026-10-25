@@ -4,7 +4,7 @@
  * zoom) and gives uneven pixels, so canvases size their backing store in device pixels.
  */
 
-import { type RefObject, useEffect, useState } from 'react';
+import { type RefObject, useEffect } from 'react';
 
 import {
   CHAR_FRAME_H,
@@ -35,18 +35,6 @@ export const FRAME_NAMES = [
 ];
 /** The front walk1 face, for the eye shape cards. */
 export const FACE = { x: 2, y: 11, w: 12, h: 7 } as const;
-
-/** The device-pixel ratio, updated on browser zoom or a move to another monitor. */
-export function useDevicePixelRatio(): number {
-  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
-  useEffect(() => {
-    const query = matchMedia(`(resolution: ${dpr}dppx)`);
-    const onChange = () => setDpr(window.devicePixelRatio || 1);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, [dpr]);
-  return dpr;
-}
 
 /** Device pixels per sprite pixel for a CSS scale. */
 export const devicePixels = (cssScale: number, dpr: number) =>
