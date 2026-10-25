@@ -176,7 +176,7 @@ webview-ui/                          React 19 + Canvas UI (depends only on core/
       floorTiles.ts                  Floor sprite storage + colorized cache
       wallTiles.ts                   Wall auto-tile: 16 bitmask sprites
       sprites/
-        spriteData.ts                Pixel data (characters, furniture, tiles, bubbles)
+        spriteData.ts                Pixel data (characters, furniture, tiles, bubbles); every setCharacterTemplates is announced (subscribeCharacterTemplates), so a mounted CharacterMugShot redraws when the cast arrives or is edited
         spriteCache.ts               SpriteData → offscreen canvas, per-zoom WeakMap
       editor/
         editorActions.ts             Pure layout ops

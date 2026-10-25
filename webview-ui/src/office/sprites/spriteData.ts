@@ -53,6 +53,8 @@ export function setCharacterTemplates(
   repeats = repeatSource;
   // Clear cache so sprites are rebuilt from loaded data
   spriteCache.clear();
+  templatesVersion++;
+  for (const listener of templateListeners) listener();
 }
 
 /**
@@ -61,6 +63,23 @@ export function setCharacterTemplates(
  */
 export function getLoadedCharacterCount(): number {
   return loadedCharacters ? loadedCharacters.length : DEFAULT_CHARACTER_PROFILES.length;
+}
+
+let templatesVersion = 0;
+const templateListeners = new Set<() => void>();
+
+/**
+ * Which set of character sprites is current: it changes on every setCharacterTemplates,
+ * so anything drawn once from the sprites (a mug shot) knows to draw again.
+ */
+export function getCharacterTemplatesVersion(): number {
+  return templatesVersion;
+}
+
+/** Hear of every setCharacterTemplates. Returns the unsubscribe. */
+export function subscribeCharacterTemplates(listener: () => void): () => void {
+  templateListeners.add(listener);
+  return () => templateListeners.delete(listener);
 }
 
 /** Flip a SpriteData horizontally (for generating left sprites from right) */
