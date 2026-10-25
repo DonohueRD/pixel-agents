@@ -29,6 +29,7 @@ import type {
   ReportedUsage,
   UsageBridge,
 } from '../../../../../core/src/provider.js';
+import { isRecord } from '../../../serverConfig.js';
 import { SETTINGS_BACKUP_SUFFIX } from './constants.js';
 import {
   installStatusLineBridge,
@@ -50,9 +51,8 @@ export const USAGE_BRIDGE_DISCLOSURE = [
 
 /** A window as reported, or undefined when absent or malformed. */
 function windowOf(raw: unknown): UsageWindow | undefined {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
-  const used = (raw as Record<string, unknown>).used_percentage;
-  const resetsAt = (raw as Record<string, unknown>).resets_at;
+  if (!isRecord(raw)) return undefined;
+  const { used_percentage: used, resets_at: resetsAt } = raw;
   if (typeof used !== 'number' || !Number.isFinite(used)) return undefined;
   if (typeof resetsAt !== 'number' || !Number.isFinite(resetsAt) || resetsAt <= 0) {
     return undefined;
@@ -62,22 +62,22 @@ function windowOf(raw: unknown): UsageWindow | undefined {
 
 /** The report's limits, or null when it carries no valid window at all. */
 export function normalizeClaudeUsageReport(raw: unknown): ReportedUsage | null {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const limits = (raw as Record<string, unknown>).rate_limits;
-  if (limits === null || typeof limits !== 'object' || Array.isArray(limits)) return null;
-  const fiveHour = windowOf((limits as Record<string, unknown>).five_hour);
-  const sevenDay = windowOf((limits as Record<string, unknown>).seven_day);
+  if (!isRecord(raw)) return null;
+  const limits = raw.rate_limits;
+  if (!isRecord(limits)) return null;
+  const fiveHour = windowOf(limits.five_hour);
+  const sevenDay = windowOf(limits.seven_day);
   if (!fiveHour && !sevenDay) return null;
   return { ...(fiveHour ? { fiveHour } : {}), ...(sevenDay ? { sevenDay } : {}) };
 }
 
 /** The reporting session's context, or null when it carries none. */
 export function normalizeClaudeContextReport(raw: unknown): ReportedContext | null {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const { session_id: sessionId, context_window: window } = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const { session_id: sessionId, context_window: window } = raw;
   if (typeof sessionId !== 'string' || sessionId === '') return null;
-  if (window === null || typeof window !== 'object' || Array.isArray(window)) return null;
-  const { used_percentage: used, context_window_size: size } = window as Record<string, unknown>;
+  if (!isRecord(window)) return null;
+  const { used_percentage: used, context_window_size: size } = window;
   if (typeof used !== 'number' || !Number.isFinite(used)) return null;
   if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) return null;
   return { sessionId, usedPercentage: Math.min(100, Math.max(0, used)), windowTokens: size };

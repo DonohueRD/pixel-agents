@@ -59,11 +59,7 @@ import {
   hookProviders,
 } from '../../server/src/providers/index.js';
 import { PixelAgentsServer } from '../../server/src/server.js';
-import {
-  applyUsageBridgeChoice,
-  usageBridgeStatusMessage,
-  usageLimitsMessage,
-} from '../../server/src/usageLimits.js';
+import { applyUsageBridgeChoice, usageSnapshotMessages } from '../../server/src/usageLimits.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -550,16 +546,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'setUsageBridgeEnabled') {
         const provider = hookProviderById(message.providerId);
         if (provider?.usageBridge && typeof message.enabled === 'boolean') {
-          void applyUsageBridgeChoice(
-            provider,
-            this.context.extensionPath,
-            message.enabled as boolean,
-          ).then((status) => {
-            if (status.error) {
-              vscode.window.showErrorMessage(`Pixel Agents: ${String(status.error)}`);
-            }
-            this.sendOrBuffer(status);
-          });
+          void applyUsageBridgeChoice(provider, this.context.extensionPath, message.enabled).then(
+            (status) => {
+              if (status.error) {
+                vscode.window.showErrorMessage(`Pixel Agents: ${status.error}`);
+              }
+              this.sendOrBuffer({ ...status });
+            },
+          );
         }
       } else if (message.type === 'hooksConsentResponse') {
         const provider = hookProviderById(message.providerId);
@@ -749,11 +743,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Usage bars: install state and the last known account usage.
-        for (const provider of hookProviders) {
-          if (!provider.usageBridge) continue;
-          this.webview?.postMessage(usageBridgeStatusMessage(provider));
-          this.webview?.postMessage(usageLimitsMessage(provider.id));
-        }
+        for (const message of usageSnapshotMessages()) this.webview?.postMessage(message);
 
         // Directory→Area mappings (must arrive before any agentCreated/existingAgents
         // so OfficeState.findFreeSeat has the dict when characters are placed).

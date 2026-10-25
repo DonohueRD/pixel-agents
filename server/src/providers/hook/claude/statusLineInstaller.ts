@@ -16,6 +16,7 @@
  * uninstall leaves it alone.
  */
 
+import { isRecord } from '../../../serverConfig.js';
 import { bundledScriptPath, copyBundledScript } from './bundledScripts.js';
 import { mutateClaudeSettings, readClaudeSettings } from './claudeSettingsFile.js';
 import { CLAUDE_STATUSLINE_SCRIPT_NAME } from './constants.js';
@@ -130,11 +131,9 @@ function isCommandSetting(
   value: unknown,
 ): value is StatusLineSetting & { type: 'command'; command: string } {
   return (
-    value !== null &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    (value as StatusLineSetting).type === 'command' &&
-    typeof (value as StatusLineSetting).command === 'string' &&
-    ((value as StatusLineSetting).command as string).trim() !== ''
+    isRecord(value) &&
+    value.type === 'command' &&
+    typeof value.command === 'string' &&
+    value.command.trim() !== ''
   );
 }

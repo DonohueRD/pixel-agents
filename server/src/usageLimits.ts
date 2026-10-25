@@ -14,13 +14,15 @@ import * as os from 'os';
 import * as path from 'path';
 import { isDeepStrictEqual } from 'util';
 
-import type { UsageWindow } from '../../core/src/messages.js';
+import type { UsageBridgeStatus, UsageLimits, UsageWindow } from '../../core/src/messages.js';
 import type { HookProvider, ReportedUsage } from '../../core/src/provider.js';
 import {
   LAYOUT_FILE_DIR,
   USAGE_LIMITS_FILE_NAME,
   USAGE_UNCHANGED_REFRESH_MS,
 } from './constants.js';
+import { hookProviders } from './providers/index.js';
+import { isRecord } from './serverConfig.js';
 
 /** A provider's last report: its windows and when it arrived (epoch ms). */
 interface StoredUsage extends ReportedUsage {
@@ -40,8 +42,8 @@ function usageFilePath(): string {
 }
 
 function isWindow(value: unknown): value is UsageWindow {
-  if (value === null || typeof value !== 'object') return false;
-  const { usedPercentage, resetsAt } = value as Record<string, unknown>;
+  if (!isRecord(value)) return false;
+  const { usedPercentage, resetsAt } = value;
   return (
     typeof usedPercentage === 'number' &&
     Number.isFinite(usedPercentage) &&
@@ -53,10 +55,10 @@ function isWindow(value: unknown): value is UsageWindow {
 /** Parse the file's content, keeping only well-formed entries. */
 function parseStored(raw: unknown): Record<string, StoredUsage> {
   const out: Record<string, StoredUsage> = {};
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return out;
-  for (const [id, entry] of Object.entries(raw as Record<string, unknown>)) {
-    if (entry === null || typeof entry !== 'object') continue;
-    const { fiveHour, sevenDay, updatedAt } = entry as Record<string, unknown>;
+  if (!isRecord(raw)) return out;
+  for (const [id, entry] of Object.entries(raw)) {
+    if (!isRecord(entry)) continue;
+    const { fiveHour, sevenDay, updatedAt } = entry;
     if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) continue;
     out[id] = {
       updatedAt,
@@ -121,7 +123,7 @@ export function recordUsageReport(
 }
 
 /** The `usageLimits` message for a provider (no windows when none is known). */
-export function usageLimitsMessage(providerId: string): Record<string, unknown> {
+export function usageLimitsMessage(providerId: string): UsageLimits {
   const entry = stored()[providerId];
   return { type: 'usageLimits', providerId, ...(entry ?? {}) };
 }
@@ -130,7 +132,7 @@ export function usageLimitsMessage(providerId: string): Record<string, unknown> 
 export function usageBridgeStatusMessage(
   provider: HookProvider,
   error?: string,
-): Record<string, unknown> {
+): UsageBridgeStatus {
   return {
     type: 'usageBridgeStatus',
     providerId: provider.id,
@@ -138,6 +140,15 @@ export function usageBridgeStatusMessage(
     disclosure: provider.usageBridge?.disclosure ?? '',
     ...(error ? { error } : {}),
   };
+}
+
+/** What a privileged office is told about usage when it connects: for each
+ *  provider with a usage bridge, in registration order, its install state and
+ *  then its last known usage. Both surfaces' handshakes send exactly this. */
+export function usageSnapshotMessages(): Array<UsageBridgeStatus | UsageLimits> {
+  return hookProviders
+    .filter((provider) => provider.usageBridge)
+    .flatMap((provider) => [usageBridgeStatusMessage(provider), usageLimitsMessage(provider.id)]);
 }
 
 /**
@@ -150,7 +161,7 @@ export async function applyUsageBridgeChoice(
   provider: HookProvider,
   packageRoot: string | undefined,
   enabled: boolean,
-): Promise<Record<string, unknown>> {
+): Promise<UsageBridgeStatus> {
   const bridge = provider.usageBridge;
   if (!bridge) return usageBridgeStatusMessage(provider);
   try {

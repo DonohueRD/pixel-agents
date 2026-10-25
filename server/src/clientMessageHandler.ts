@@ -28,11 +28,7 @@ import { hooksConsentRequest } from './providers/hook/consentGate.js';
 import { claudeProvider, hookProviderById, hookProviders } from './providers/index.js';
 import { launchStandaloneAgent } from './terminal/standaloneAgentLauncher.js';
 import type { TerminalSessions } from './terminal/terminalSessions.js';
-import {
-  applyUsageBridgeChoice,
-  usageBridgeStatusMessage,
-  usageLimitsMessage,
-} from './usageLimits.js';
+import { applyUsageBridgeChoice, usageSnapshotMessages } from './usageLimits.js';
 
 type WsSend = (message: Record<string, unknown>) => void;
 
@@ -277,8 +273,8 @@ export function handleClientMessage(
       const provider = hookProviderById(msg.providerId);
       if (!provider?.usageBridge || typeof msg.enabled !== 'boolean') break;
       void applyUsageBridgeChoice(provider, ctx.packageRoot, msg.enabled).then((status) => {
-        if (status.error) send(status);
-        else store.broadcast(status);
+        if (status.error) send({ ...status });
+        else store.broadcast({ ...status });
       });
       break;
     }
@@ -590,11 +586,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
 
   // 4a-ter. Usage bars: the operator's account usage, privileged clients only.
   if (ctx.privileged) {
-    for (const provider of hookProviders) {
-      if (!provider.usageBridge) continue;
-      send(usageBridgeStatusMessage(provider));
-      send(usageLimitsMessage(provider.id));
-    }
+    for (const message of usageSnapshotMessages()) send({ ...message });
   }
 
   // 4b. Directory→Area mappings (must arrive before existingAgents so the

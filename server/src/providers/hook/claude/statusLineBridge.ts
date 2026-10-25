@@ -20,6 +20,7 @@
 import { isDeepStrictEqual } from 'util';
 
 import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
+import { isRecord } from '../../../serverConfig.js';
 import { commandRunsScript } from './commandIdentity.js';
 import { CLAUDE_STATUSLINE_SCRIPT_NAME, STATUSLINE_WRAP_FLAG } from './constants.js';
 
@@ -41,11 +42,7 @@ export function isOurStatusLineCommand(command: string): boolean {
 /** Whether a `statusLine` value is a command setting running our script. */
 export function isOurStatusLine(value: unknown): value is StatusLineSetting & { command: string } {
   return (
-    value !== null &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    typeof (value as StatusLineSetting).command === 'string' &&
-    isOurStatusLineCommand((value as StatusLineSetting).command as string)
+    isRecord(value) && typeof value.command === 'string' && isOurStatusLineCommand(value.command)
   );
 }
 

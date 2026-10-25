@@ -58,7 +58,7 @@ server/                              Lifecycle runtime + Fastify HTTP/WS server
     configPersistence.ts             { vscode, standalone, externalAssetDirectories, hooksConsent: {providerId: granted|declined}, hooksEnabled: {providerId: boolean} }
     layoutPersistence.ts             ~/.pixel-agents/layout.json with atomic tmp+rename
     terminal/                        Standalone terminals (TerminalSessions): in process (ptySessionManager.ts, the default) or, dev only, a PTY host that outlives the server (ptyHost.ts, remotePtySessions.ts, ptyHostProtocol.ts)
-    usageLimits.ts                   Usage bars: last report per provider (~/.pixel-agents/usage-limits.json), merge + throttle, usageLimits/usageBridgeStatus messages, applyUsageBridgeChoice; PRIVILEGED_BROADCAST_TYPES
+    usageLimits.ts                   Usage bars: last report per provider (~/.pixel-agents/usage-limits.json), merge + throttle, usageLimits/usageBridgeStatus messages (usageSnapshotMessages = both surfaces' handshake), applyUsageBridgeChoice; PRIVILEGED_BROADCAST_TYPES
     cardOrder.ts                     The agent cards' order, one per surface for every client (desktop and phone): parse, load, save (pruned to live agents)
     fileWatcher.ts                   Hybrid fs.watch + 500ms polling, JSONL line buffering, /clear detection
     transcriptParser.ts              JSONL parsing for heuristic / file-fallback mode

@@ -80,19 +80,31 @@ function applyContextTokens(
   declaredWindow: number | undefined,
 ): void {
   if (fromMainChain) agent.sawMainChainUsage = true;
-  agent.contextTokens = tokens;
   // A named model wins over the running estimate -- switching models mid-session
   // genuinely changes the window, and the provider knows it while we're only
   // guessing from what we've seen.
-  agent.maxContextTokens = widenContextWindow(
+  const window = widenContextWindow(
     tokens,
     agent.reportedContextWindow ?? declaredWindow ?? agent.maxContextTokens,
   );
+  setContext(agents, agentId, agent, tokens, window);
+}
+
+/** Set an agent's gauge and tell the office. */
+function setContext(
+  agents: AgentStateStore,
+  agentId: number,
+  agent: AgentState,
+  tokens: number,
+  maxTokens: number,
+): void {
+  agent.contextTokens = tokens;
+  agent.maxContextTokens = maxTokens;
   agents.broadcast({
     type: 'agentContextUsage',
     id: agentId,
-    contextTokens: agent.contextTokens,
-    maxContextTokens: agent.maxContextTokens,
+    contextTokens: tokens,
+    maxContextTokens: maxTokens,
   });
 }
 
@@ -110,14 +122,7 @@ export function applyReportedContext(agents: AgentStateStore, report: ReportedCo
     if (agent.contextTokens === tokens && agent.maxContextTokens === report.windowTokens) {
       return true;
     }
-    agent.contextTokens = tokens;
-    agent.maxContextTokens = report.windowTokens;
-    agents.broadcast({
-      type: 'agentContextUsage',
-      id: agentId,
-      contextTokens: tokens,
-      maxContextTokens: report.windowTokens,
-    });
+    setContext(agents, agentId, agent, tokens, report.windowTokens);
     return true;
   }
   return false;

@@ -10,8 +10,12 @@ vi.mock('os', async () => {
   return { ...actual, homedir: () => tmpBase };
 });
 
-const { recordUsageReport, usageLimitsMessage, resetUsageLimitsCacheForTests } =
-  await import('../src/usageLimits.js');
+const {
+  recordUsageReport,
+  usageLimitsMessage,
+  usageSnapshotMessages,
+  resetUsageLimitsCacheForTests,
+} = await import('../src/usageLimits.js');
 const { normalizeClaudeUsageReport, normalizeClaudeContextReport } =
   await import('../src/providers/hook/claude/claudeUsageBridge.js');
 const { claudeProvider } = await import('../src/providers/index.js');
@@ -133,5 +137,18 @@ describe('recordUsageReport', () => {
     fs.mkdirSync(path.join(tmpBase, '.pixel-agents'), { recursive: true });
     fs.writeFileSync(path.join(tmpBase, '.pixel-agents', 'usage-limits.json'), '{ nope');
     expect(usageLimitsMessage('claude')).toEqual({ type: 'usageLimits', providerId: 'claude' });
+  });
+
+  it('snapshots each bridged provider: its install state, then its usage', () => {
+    recordUsageReport(claudeProvider, report(42, 18), 1000);
+    expect(usageSnapshotMessages()).toEqual([
+      {
+        type: 'usageBridgeStatus',
+        providerId: 'claude',
+        installed: false,
+        disclosure: claudeProvider.usageBridge!.disclosure,
+      },
+      usageLimitsMessage('claude'),
+    ]);
   });
 });

@@ -199,7 +199,7 @@ function registerUsageRoute(app: FastifyInstance, options: HttpServerOptions): v
     async (request, reply) => {
       const provider = hookProviderById(request.params.providerId);
       if (provider && recordUsageReport(provider, request.body)) {
-        options.store.broadcast(usageLimitsMessage(provider.id));
+        options.store.broadcast({ ...usageLimitsMessage(provider.id) });
       }
       const context = provider?.usageBridge?.normalizeContext(request.body);
       if (context) applyReportedContext(options.store, context);

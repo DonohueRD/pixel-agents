@@ -22,6 +22,7 @@
 import { spawn } from 'child_process';
 
 import { USAGE_API_PREFIX } from '../../../../constants.js';
+import { isRecord } from '../../../../serverConfig.js';
 import { STATUSLINE_WRAP_FLAG } from '../constants.js';
 import { liveServers, postToServer } from './serverRegistry.js';
 
@@ -38,9 +39,6 @@ function wrappedCommand(argv: readonly string[]): string | undefined {
   return decoded.trim() === '' ? undefined : decoded;
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> =>
-  v !== null && typeof v === 'object' && !Array.isArray(v);
-
 /** What of the status line input is reported: the rate limits and this
  *  session's context share, picked field by field. Null when it has neither. */
 function reportOf(input: string): Record<string, unknown> | null {
@@ -50,13 +48,13 @@ function reportOf(input: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
-  if (!isObject(data)) return null;
+  if (!isRecord(data)) return null;
   const body: Record<string, unknown> = {};
-  if (isObject(data.rate_limits)) body.rate_limits = data.rate_limits;
+  if (isRecord(data.rate_limits)) body.rate_limits = data.rate_limits;
   const window = data.context_window;
   if (
     typeof data.session_id === 'string' &&
-    isObject(window) &&
+    isRecord(window) &&
     typeof window.used_percentage === 'number'
   ) {
     body.session_id = data.session_id;
