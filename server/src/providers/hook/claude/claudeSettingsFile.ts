@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+import { isRecord } from '../../../serverConfig.js';
 import { type ClaudeHookEntry, hooksHoldOnlyOurs } from './claudeHookEntries.js';
 import {
   SETTINGS_BACKUP_SUFFIX,
@@ -293,7 +294,10 @@ const OUR_KEYS: ReadonlyMap<string, (value: unknown) => boolean> = new Map([
  *
  *  Each key's check compares against its WRITER (makeHookEntry,
  *  makeBareStatusLine), never a hand-written twin of it: see hooksHoldOnlyOurs
- *  for why. A new key we write joins OUR_KEYS with its own check. */
+ *  for why. A new key we write joins OUR_KEYS with its own check. A top level
+ *  that is not an object (a number, a string, an array) is never ours: we only
+ *  ever write an object. */
 export function settingsHoldOnlyOurOutput(settings: ClaudeSettings): boolean {
+  if (!isRecord(settings)) return false;
   return Object.keys(settings).every((key) => OUR_KEYS.get(key)?.(settings[key]) ?? false);
 }

@@ -95,7 +95,10 @@ describe('settingsHoldOnlyOurOutput', () => {
       { hooks: { Stop: [ourEntry()] }, statusLine: bare },
       true,
     ],
-    ['a top-level array', [], true],
+    ['a top-level array', [], false],
+    ['a top-level number', 5, false],
+    ['a top-level string', 'x', false],
+    ['a top-level null', null, false],
     [
       'a wrapped status line',
       {
