@@ -7,25 +7,22 @@
  * the user's own (statusLineBridge.ts): their status line still renders, byte
  * for byte, and uninstall puts their command back.
  *
- * Same rules as the hook installer, through its one guarded read-modify-write
- * (mutateClaudeSettings: unparseable file refused, one-time backup, re-read
- * before rename): we never rewrite a shape we did not author. A `statusLine`
- * that is not a command setting is refused on install; one whose text after
- * our script was hand-edited is refused on uninstall, since we could no longer
- * tell what to restore. A status line someone replaced after us is theirs —
+ * Same rules as the hook installer, through the one guarded read-modify-write
+ * (claudeSettingsFile.ts mutateClaudeSettings: unparseable file refused,
+ * one-time backup, re-read before rename): we never rewrite a shape we did
+ * not author. A `statusLine` that is not a command setting is refused on
+ * install; one whose text after our script was hand-edited is refused on
+ * uninstall, since we could no longer tell what to restore. A status line someone replaced after us is theirs —
  * uninstall leaves it alone.
  */
 
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-
-import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
-import { copyBundledScript, mutateClaudeSettings } from './claudeHookInstaller.js';
+import { bundledScriptPath, copyBundledScript } from './bundledScripts.js';
+import { mutateClaudeSettings, readClaudeSettings } from './claudeSettingsFile.js';
 import { CLAUDE_STATUSLINE_SCRIPT_NAME } from './constants.js';
 import {
   isOurStatusLine,
   isOurStatusLineCommand,
+  makeBareStatusLine,
   makeStatusLineCommand,
   type StatusLineSetting,
   wrappedStatusLineCommand,
@@ -39,17 +36,11 @@ export const STATUSLINE_NOT_COMMAND_MESSAGE =
 export const STATUSLINE_EDITED_MESSAGE =
   "The Pixel Agents status line in ~/.claude/settings.json was edited by hand, so the original can't be restored — fix or remove it";
 
-/** ~/.pixel-agents/hooks/claude-statusline.js */
-function statusLineScriptPath(): string {
-  return path.join(os.homedir(), HOOK_SCRIPTS_DIR, CLAUDE_STATUSLINE_SCRIPT_NAME);
-}
-
 /** Whether the user-scope status line runs our bridge. An unreadable or
  *  unparseable file reads as not installed (install then refuses to touch it). */
 export function isStatusLineBridgeInstalled(): boolean {
   try {
-    const raw = fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf-8');
-    return isOurStatusLine((JSON.parse(raw) as Record<string, unknown>).statusLine);
+    return isOurStatusLine(readClaudeSettings().statusLine);
   } catch {
     return false;
   }
@@ -67,13 +58,13 @@ export async function installStatusLineBridge(packageRoot: string): Promise<void
   if (!copyBundledScript(packageRoot, CLAUDE_STATUSLINE_SCRIPT_NAME)) {
     throw new Error('Could not install the status line script — status line left unchanged.');
   }
-  const scriptPath = statusLineScriptPath();
+  const scriptPath = bundledScriptPath(CLAUDE_STATUSLINE_SCRIPT_NAME);
   let wrote: boolean;
   try {
     wrote = await mutateClaudeSettings((settings) => {
-      const current = settings.statusLine as unknown;
+      const current = settings.statusLine;
       if (current === undefined) {
-        settings.statusLine = { type: 'command', command: makeStatusLineCommand(scriptPath) };
+        settings.statusLine = makeBareStatusLine(scriptPath);
         return true;
       }
       if (!isCommandSetting(current)) throw new Error(STATUSLINE_NOT_COMMAND_MESSAGE);
@@ -108,7 +99,7 @@ export async function uninstallStatusLineBridge(): Promise<void> {
   let wrote: boolean;
   try {
     wrote = await mutateClaudeSettings((settings) => {
-      const current = settings.statusLine as unknown;
+      const current = settings.statusLine;
       if (!isOurStatusLine(current)) return false;
       const inner = wrappedStatusLineCommand(current.command);
       if (inner === undefined) throw new Error(STATUSLINE_EDITED_MESSAGE);

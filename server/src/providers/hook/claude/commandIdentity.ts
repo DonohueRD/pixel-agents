@@ -2,7 +2,7 @@
  * Which script a settings.json command runs: the one parser behind every "is
  * this command ours?" check (the hook entries and the status line bridge), so
  * the two can never disagree on what counts as ours. See isOurHookCommand in
- * claudeHookInstaller.ts for the identity rules this parser serves.
+ * claudeHookEntries.ts for the identity rules this parser serves.
  */
 
 /** Characters that end a path token in a shell command line. A path we own is

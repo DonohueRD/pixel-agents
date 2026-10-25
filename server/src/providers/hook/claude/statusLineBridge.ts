@@ -17,6 +17,8 @@
  * from the setting itself.
  */
 
+import { isDeepStrictEqual } from 'util';
+
 import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
 import { commandRunsScript } from './commandIdentity.js';
 import { CLAUDE_STATUSLINE_SCRIPT_NAME, STATUSLINE_WRAP_FLAG } from './constants.js';
@@ -80,15 +82,32 @@ export function wrappedStatusLineCommand(command: string): string | null | undef
     : undefined;
 }
 
+/** What install writes into a settings file that had no status line: our
+ *  command wrapping nothing, and no other field. The WRITER — isBareOurStatusLine
+ *  compares against it. */
+export function makeBareStatusLine(
+  scriptPath: string,
+): StatusLineSetting & { type: 'command'; command: string } {
+  return { type: 'command', command: makeStatusLineCommand(scriptPath) };
+}
+
 /** Whether a `statusLine` value is exactly what install writes into a settings
- *  file that had no status line: our command wrapping nothing, no other field.
- *  The backup predicate reads that as our own output, like our hook entries. */
+ *  file that had no status line (makeBareStatusLine). The backup predicate
+ *  reads that as our own output, like our hook entries.
+ *
+ *  Checked against the writer, not a hand-written twin of it (see
+ *  hooksHoldOnlyOurs): every field but `command` must be one the writer writes,
+ *  with the writer's value, and every field the writer writes must be there.
+ *  `command` is exempt because the script path varies across homes; its
+ *  identity is the suffix rule, and it must wrap nothing. */
 export function isBareOurStatusLine(value: unknown): boolean {
-  if (!isOurStatusLine(value)) return false;
-  const keys = Object.keys(value);
+  if (!isOurStatusLine(value) || wrappedStatusLineCommand(value.command) !== null) return false;
+  const reference = new Map<string, unknown>(Object.entries(makeBareStatusLine('')));
+  const fields = Object.entries(value);
   return (
-    value.type === 'command' &&
-    keys.every((k) => k === 'type' || k === 'command') &&
-    wrappedStatusLineCommand(value.command) === null
+    fields.every(
+      ([key, field]) =>
+        key === 'command' || (reference.has(key) && isDeepStrictEqual(field, reference.get(key))),
+    ) && [...reference.keys()].every((key) => key in value)
   );
 }
