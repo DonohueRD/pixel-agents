@@ -559,36 +559,39 @@ export const TERMINAL_ARROW_SEQUENCES = {
   right: TERMINAL_SEQ_ARROW_RIGHT,
 } as const;
 /** Accessory keys shown above the iOS keyboard in terminal view — the keys a
- *  Claude Code TUI needs that the software keyboard lacks. `sequence` is the
- *  raw bytes written to the PTY: shift+tab is CSI Z (back-tab). */
-export const MOBILE_KEY_BAR_KEYS: ReadonlyArray<{
-  label: string;
-  /** Byte sequence a tap writes to the PTY. Absent on the trackpad key — a
-   *  plain tap there deliberately does nothing. */
-  sequence?: string;
+ *  Claude Code TUI needs that the software keyboard lacks. Each key's
+ *  `sequence` is the raw bytes a tap writes to the PTY: shift+tab is CSI Z
+ *  (back-tab). The trackpad sits in the middle of the bar: the `left` keys
+ *  fill the left half, the `right` keys the right. */
+export const MOBILE_KEY_BAR: {
+  left: ReadonlyArray<{ label: string; sequence: string }>;
   /** Press-hold-slide emits arrow keys with the finger, along the first
    *  direction it moves in (touch/trackpad.ts), echoing the iOS space-bar
    *  trackpad (whose real caret gesture can't reach xterm — its textarea
    *  must stay empty for input diffing). Drives Claude Code's TUI menus (/resume, /model) and the
-   *  input-line cursor; the iOS keyboard has no arrows of its own. */
-  trackpad?: boolean;
-}> = [
-  // The trackpad sits in the middle of the bar: the keys before it fill the
-  // left half, the keys after it the right.
-  { label: '/', sequence: '/' },
-  // The iOS keyboard has no tab key: Claude Code completes paths and
-  // commands with it.
-  { label: 'tab', sequence: '\t' },
-  { label: 'shift+tab', sequence: '\x1b[Z' },
-  { label: 'Arrow keys', trackpad: true },
-  { label: 'esc', sequence: '\x1b' },
-  // Forward delete: the iOS keyboard's ⌫ only deletes backwards.
-  { label: 'del', sequence: '\x1b[3~' },
-  // Line break without submitting: Claude Code's backslash+Enter escape —
-  // its universal form (shift+enter needs a /terminal-setup rebind that
-  // can't exist on a phone keyboard).
-  { label: '↵', sequence: '\\\r' },
-];
+   *  input-line cursor; the iOS keyboard has no arrows of its own. A plain
+   *  tap on it deliberately does nothing. */
+  pad: { label: string };
+  right: ReadonlyArray<{ label: string; sequence: string }>;
+} = {
+  left: [
+    { label: '/', sequence: '/' },
+    // The iOS keyboard has no tab key: Claude Code completes paths and
+    // commands with it.
+    { label: 'tab', sequence: '\t' },
+    { label: 'shift+tab', sequence: '\x1b[Z' },
+  ],
+  pad: { label: 'Arrow keys' },
+  right: [
+    { label: 'esc', sequence: '\x1b' },
+    // Forward delete: the iOS keyboard's ⌫ only deletes backwards.
+    { label: 'del', sequence: '\x1b[3~' },
+    // Line break without submitting: Claude Code's backslash+Enter escape —
+    // its universal form (shift+enter needs a /terminal-setup rebind that
+    // can't exist on a phone keyboard).
+    { label: '↵', sequence: '\\\r' },
+  ],
+};
 /** The trackpad key's slide (touch/trackpad.ts): finger travel per left/right
  *  arrow (twice as fast as up/down: a line has far more columns than a menu
  *  has rows), per up/down arrow, the travel from a pivot that picks the axis,
@@ -633,7 +636,7 @@ export const SIDE_PANEL_CONTENT_SHIFT_PX = 24;
  *  side. The phone's + card (square) is sized from it, so the bar's first
  *  card lines up with the rest. */
 export const AGENT_CARD_HEIGHT_PX = MUGSHOT_CROP_SIDE_PX * MUGSHOT_RENDER_ZOOM + 2 * (1 + 2);
-/** An agent card's width: its mug shot, the 1px gap, the 16px close/status
- *  column, and 1px padding and 2px border each side. */
+/** An agent card's width: its mug shot, the 1px gap, the close/status column
+ *  (one 8×8 PixelIcon wide), and 1px padding and 2px border each side. */
 export const AGENT_CARD_WIDTH_PX =
-  MUGSHOT_CROP_SIDE_PX * MUGSHOT_RENDER_ZOOM + 1 + 16 + 2 * (1 + 2);
+  MUGSHOT_CROP_SIDE_PX * MUGSHOT_RENDER_ZOOM + 1 + 8 * PIXEL_ICON_SCALE + 2 * (1 + 2);

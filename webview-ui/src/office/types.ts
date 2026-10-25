@@ -216,7 +216,7 @@ export interface Character {
   /** Whether this character represents a sub-agent (spawned by Task tool) */
   isSubagent: boolean;
   /** A helper's time since its last tool call ended (0 while working). */
-  helperIdleSec?: number;
+  helperIdleSec: number;
   /** Parent agent ID if this is a sub-agent, null otherwise */
   parentAgentId: number | null;
   /** Active matrix spawn/despawn effect, or null */

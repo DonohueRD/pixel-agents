@@ -82,9 +82,7 @@ export class FileStateAdapter implements StateAdapter {
   }
 
   saveAgents(agents: PersistedAgent[]): void {
-    const state = this.readState();
-    state.agents = agents;
-    this.writeState(state);
+    this.patchState({ agents });
   }
 
   loadSeats(): Record<string, { palette?: number; hueShift?: number; seatId?: string }> {
@@ -92,9 +90,7 @@ export class FileStateAdapter implements StateAdapter {
   }
 
   saveSeats(seats: Record<string, { palette?: number; hueShift?: number; seatId?: string }>): void {
-    const state = this.readState();
-    state.seats = seats;
-    this.writeState(state);
+    this.patchState({ seats });
   }
 
   loadCardOrder(): number[] {
@@ -102,9 +98,7 @@ export class FileStateAdapter implements StateAdapter {
   }
 
   saveCardOrder(order: number[]): void {
-    const state = this.readState();
-    state.cardOrder = order;
-    this.writeState(state);
+    this.patchState({ cardOrder: order });
   }
 
   // ── Internal state-file I/O ─────────────────────────────────
@@ -128,6 +122,11 @@ export class FileStateAdapter implements StateAdapter {
       console.error('[Pixel Agents] Failed to read adapter state:', err);
       return { ...EMPTY_STATE };
     }
+  }
+
+  /** Read, change these fields, write back. */
+  private patchState(patch: Partial<AdapterState>): void {
+    this.writeState({ ...this.readState(), ...patch });
   }
 
   private writeState(state: AdapterState): void {

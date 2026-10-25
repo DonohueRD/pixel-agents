@@ -82,6 +82,7 @@ export function createCharacter(
     bubbleTimer: 0,
     seatTimer: 0,
     isSubagent: false,
+    helperIdleSec: 0,
     parentAgentId: null,
     matrixEffect: null,
     matrixEffectTimer: 0,
@@ -351,7 +352,7 @@ export function updateHelper(
   blockedTiles: Set<string>,
 ): void {
   ch.frameTimer += dt;
-  ch.helperIdleSec = ch.isActive ? 0 : (ch.helperIdleSec ?? 0) + dt;
+  ch.helperIdleSec = ch.isActive ? 0 : ch.helperIdleSec + dt;
 
   if (ch.state === CharacterState.WALK && ch.path.length > 0) {
     if (ch.frameTimer >= WALK_FRAME_DURATION_SEC) {
@@ -401,7 +402,7 @@ export function updateHelper(
  *  swaps the seated sprite for the standing one and back, so a helper stands
  *  only once it has been idle for HELPER_STAND_UP_DELAY_SEC. */
 function wantsState(ch: Character): CharacterState {
-  const working = ch.isActive || (ch.helperIdleSec ?? 0) < HELPER_STAND_UP_DELAY_SEC;
+  const working = ch.isActive || ch.helperIdleSec < HELPER_STAND_UP_DELAY_SEC;
   return working ? CharacterState.TYPE : CharacterState.IDLE;
 }
 

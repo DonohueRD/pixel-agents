@@ -2,7 +2,7 @@ import type { TouchEvent as ReactTouchEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
-  MOBILE_KEY_BAR_KEYS,
+  MOBILE_KEY_BAR,
   MOBILE_TRACKPAD,
   MOBILE_TRACKPAD_NUDGE_MS,
   PIXEL_ICON_SCALE,
@@ -28,12 +28,6 @@ const NUDGE: Record<TrackpadArrow, string> = {
   left: `translateX(-${PIXEL_ICON_SCALE}px)`,
   right: `translateX(${PIXEL_ICON_SCALE}px)`,
 };
-
-/** Keys before the trackpad fill the bar's left half, keys after it the right. */
-const PAD_INDEX = MOBILE_KEY_BAR_KEYS.findIndex((k) => k.trackpad);
-const LEFT_KEYS = MOBILE_KEY_BAR_KEYS.slice(0, PAD_INDEX);
-const PAD_KEY = MOBILE_KEY_BAR_KEYS[PAD_INDEX];
-const RIGHT_KEYS = MOBILE_KEY_BAR_KEYS.slice(PAD_INDEX + 1);
 
 /**
  * Accessory key row shown above the software keyboard in terminal view. The
@@ -147,7 +141,7 @@ export function MobileKeyBar({ onKey, lineCols }: MobileKeyBarProps) {
   // of it.
   const keyClass =
     'flex-1 min-w-fit h-36 flex items-center justify-center whitespace-nowrap bg-btn-bg border-2 border-border rounded-none text-text text-sm leading-none px-6 cursor-pointer active:bg-btn-hover';
-  const renderKey = ({ label, sequence }: (typeof MOBILE_KEY_BAR_KEYS)[number]) => (
+  const renderKey = ({ label, sequence }: (typeof MOBILE_KEY_BAR.left)[number]) => (
     <button
       key={label}
       onTouchStart={onKeyTouchStart}
@@ -156,12 +150,12 @@ export function MobileKeyBar({ onKey, lineCols }: MobileKeyBarProps) {
       // key is sent here and the suppressed click never fires.
       onTouchEnd={(e) => {
         e.preventDefault();
-        if (endedAsTap(e) && sequence !== undefined) onKey(sequence);
+        if (endedAsTap(e)) onKey(sequence);
       }}
       // Mouse path (desktop emulation): block the focus steal on mousedown,
       // send on click.
       onMouseDown={(e) => e.preventDefault()}
-      onClick={sequence !== undefined ? () => onKey(sequence) : undefined}
+      onClick={() => onKey(sequence)}
       className={keyClass}
     >
       {label}
@@ -174,30 +168,28 @@ export function MobileKeyBar({ onKey, lineCols }: MobileKeyBarProps) {
     // pan-x alone already rules out. The two halves share the width equally,
     // which keeps the pad in the middle of the bar.
     <div className="shrink-0 flex items-center gap-6 px-8 py-6 bg-bg border-t-2 border-border overflow-x-auto touch-pan-x">
-      <div className="flex-1 min-w-fit flex gap-6">{LEFT_KEYS.map(renderKey)}</div>
-      {PAD_KEY && (
-        <button
-          aria-label={PAD_KEY.label}
-          onTouchStart={onPadTouchStart}
-          onTouchMove={onPadTouchMove}
-          onTouchEnd={onPadTouchEnd}
-          onTouchCancel={releasePad}
-          // No click action: desktop has real arrow keys.
-          onMouseDown={(e) => e.preventDefault()}
-          className={`shrink-0 w-36 h-36 p-0 flex items-center justify-center border-2 rounded-none touch-none select-none cursor-pointer ${
-            padHeld
-              ? 'bg-accent border-accent-bright text-text-on-accent'
-              : 'bg-btn-bg border-border text-text'
-          }`}
-        >
-          <PixelIcon
-            name="arrows"
-            className="pointer-events-none"
-            style={{ transform: nudge ? NUDGE[nudge] : undefined }}
-          />
-        </button>
-      )}
-      <div className="flex-1 min-w-fit flex gap-6">{RIGHT_KEYS.map(renderKey)}</div>
+      <div className="flex-1 min-w-fit flex gap-6">{MOBILE_KEY_BAR.left.map(renderKey)}</div>
+      <button
+        aria-label={MOBILE_KEY_BAR.pad.label}
+        onTouchStart={onPadTouchStart}
+        onTouchMove={onPadTouchMove}
+        onTouchEnd={onPadTouchEnd}
+        onTouchCancel={releasePad}
+        // No click action: desktop has real arrow keys.
+        onMouseDown={(e) => e.preventDefault()}
+        className={`shrink-0 w-36 h-36 p-0 flex items-center justify-center border-2 rounded-none touch-none select-none cursor-pointer ${
+          padHeld
+            ? 'bg-accent border-accent-bright text-text-on-accent'
+            : 'bg-btn-bg border-border text-text'
+        }`}
+      >
+        <PixelIcon
+          name="arrows"
+          className="pointer-events-none"
+          style={{ transform: nudge ? NUDGE[nudge] : undefined }}
+        />
+      </button>
+      <div className="flex-1 min-w-fit flex gap-6">{MOBILE_KEY_BAR.right.map(renderKey)}</div>
     </div>
   );
 }
