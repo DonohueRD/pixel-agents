@@ -30,6 +30,7 @@ import {
   WALL_PIECE_HEIGHT,
   WALL_PIECE_WIDTH,
 } from './constants.js';
+import { LEGACY_SHEET_W, widenLegacySheet } from './seatedFrame.js';
 import type { CharacterDirectionSprites, PetSpriteFrames } from './types.js';
 
 // ── Sprite decoding ──────────────────────────────────────────
@@ -161,11 +162,15 @@ export function parseCarpetPng(pngBuffer: Buffer): string[][][] {
 }
 
 /**
- * Decode a single character PNG (112×96) into direction-keyed frame arrays.
- * Each PNG has 3 direction rows (down, up, right) × 7 frames (16×32 each).
+ * Decode a single character PNG (128×96) into direction-keyed frame arrays.
+ * Each PNG has 3 direction rows (down, up, right) × 8 frames (16×32 each). A sheet made
+ * before the seated frame (112×96, 7 frames) gets it derived from its typing frames.
  */
 export function decodeCharacterPng(pngBuffer: Buffer): CharacterDirectionSprites {
   const png = PNG.sync.read(sanitizePngBuffer(pngBuffer));
+  const legacy = png.width === LEGACY_SHEET_W;
+  const width = legacy ? CHAR_FRAME_W * CHAR_FRAMES_PER_ROW : png.width;
+  const data = legacy ? widenLegacySheet(png.data) : png.data;
   const charData: CharacterDirectionSprites = { down: [], up: [], right: [] };
 
   for (let dirIdx = 0; dirIdx < CHARACTER_DIRECTIONS.length; dirIdx++) {
@@ -179,12 +184,8 @@ export function decodeCharacterPng(pngBuffer: Buffer): CharacterDirectionSprites
       for (let y = 0; y < CHAR_FRAME_H; y++) {
         const row: string[] = [];
         for (let x = 0; x < CHAR_FRAME_W; x++) {
-          const idx = ((rowOffsetY + y) * png.width + (frameOffsetX + x)) * 4;
-          const r = png.data[idx];
-          const g = png.data[idx + 1];
-          const b = png.data[idx + 2];
-          const a = png.data[idx + 3];
-          row.push(rgbaToHex(r, g, b, a));
+          const idx = ((rowOffsetY + y) * width + (frameOffsetX + x)) * 4;
+          row.push(rgbaToHex(data[idx], data[idx + 1], data[idx + 2], data[idx + 3]));
         }
         sprite.push(row);
       }
