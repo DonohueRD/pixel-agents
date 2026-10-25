@@ -14,12 +14,15 @@ import { PixelSvg } from './PixelSvg.js';
 export function PixelText({
   text,
   scale = PIXEL_ICON_SCALE,
+  shadow = false,
   className = '',
   style,
 }: {
   text: string;
   /** CSS pixels per glyph pixel. Whole numbers only. */
   scale?: number;
+  /** A hard dark shadow under the glyphs, for text drawn over the office. */
+  shadow?: boolean;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -36,7 +39,16 @@ export function PixelText({
           );
         }
         const { rects, width } = glyphRects(part.text);
-        return <PixelSvg key={i} rects={rects} width={width} height={GLYPH_HEIGHT} unit={unit} />;
+        return (
+          <PixelSvg
+            key={i}
+            rects={rects}
+            width={width}
+            height={GLYPH_HEIGHT}
+            unit={unit}
+            className={shadow ? 'pixel-glyphs-shadow' : ''}
+          />
+        );
       })}
       <span className="sr-only">{text}</span>
     </span>

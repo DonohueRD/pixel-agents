@@ -18,7 +18,7 @@ import { Button } from './components/ui/Button.js';
 import { Modal } from './components/ui/Modal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
-import { OFFICE_CANVAS_TEST_ID } from './constants.js';
+import { OFFICE_CANVAS_TEST_ID, USAGE_PROVIDER_ID } from './constants.js';
 import { useDirectoryEditor } from './hooks/useDirectoryEditor.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
@@ -45,6 +45,7 @@ import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
 import { installTestHooks } from './testHooks.js';
 import { transport } from './transport/index.js';
+import { UsageBars } from './usage/UsageBars.js';
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null };
@@ -109,6 +110,8 @@ function App() {
     hooksInstalled,
     hooksStatusSeq,
     hooksInfoShown,
+    usageBridge,
+    usageLimits,
     consentRequest,
     dismissConsentRequest,
     areaMappings,
@@ -532,6 +535,11 @@ function App() {
                 jobs move to the card bar (+) and the floating Settings button. */}
           {!isMobile && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
+          {/* The Claude Code plan's usage, top-left (Settings → Usage Bars). */}
+          {usageBridge[USAGE_PROVIDER_ID]?.installed && (
+            <UsageBars limits={usageLimits[USAGE_PROVIDER_ID]} mobile={isMobile} />
+          )}
+
           {/* Vignette overlay */}
           <div
             className="absolute inset-0 pointer-events-none"
@@ -722,6 +730,14 @@ function App() {
           installPending={installPending}
           onChoice={handleConsentChoice}
           onClose={handleIntroClose}
+          usageBridge={usageBridge[USAGE_PROVIDER_ID]}
+          onEnableUsageBars={() =>
+            transport.send({
+              type: 'setUsageBridgeEnabled',
+              providerId: USAGE_PROVIDER_ID,
+              enabled: true,
+            })
+          }
           escapeSuppressed={
             isSettingsOpen ||
             isChangelogOpen ||
@@ -895,6 +911,10 @@ function App() {
             });
           }
         }}
+        usageBridge={usageBridge[USAGE_PROVIDER_ID]}
+        onSetUsageBridgeEnabled={(enabled) =>
+          transport.send({ type: 'setUsageBridgeEnabled', providerId: USAGE_PROVIDER_ID, enabled })
+        }
         showAreas={showAreas}
         onToggleShowAreas={onToggleShowAreas}
         showAreasAvailable={areasAvailable}

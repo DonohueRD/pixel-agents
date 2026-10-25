@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { HooksConsentRequest } from '../../../core/src/messages.js';
+import type {
+  HooksConsentRequest,
+  UsageBridgeStatus,
+  UsageLimits,
+} from '../../../core/src/messages.js';
 import { cardOrderOf } from '../components/cardBar.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
+import { setAgentContextUsed } from '../office/contextGauge.js';
 import type { ExistingAgentMeta, PendingAgent } from '../office/engine/existingAgents.js';
 import { reconcileExistingAgents, staleAgentIds } from '../office/engine/existingAgents.js';
 import type { OfficeState } from '../office/engine/officeState.js';
@@ -137,6 +142,11 @@ interface ExtensionMessageState {
    *  duplicate to drift. Cleared on answer/dismissal, and by a matching provider's hooksStatus installed=true. */
   consentRequest: HooksConsentRequest | null;
   dismissConsentRequest: (providerId: string | null) => void;
+  /** Usage bars: each provider's usage bridge install state (usageBridgeStatus), keyed by providerId. Absent = this
+   *  office is not told (read-only, or a provider without a bridge). */
+  usageBridge: Record<string, UsageBridgeStatus>;
+  /** The account's last known plan usage per provider (usageLimits). */
+  usageLimits: Record<string, UsageLimits>;
   // Areas
   areaMappings: Record<string, string[]>;
   setAreaMappings: (m: Record<string, string[]>) => void;
@@ -214,6 +224,8 @@ export function useExtensionMessages(
   const [hooksInstalled, setHooksInstalled] = useState<Record<string, boolean>>({});
   const [hooksStatusSeq, setHooksStatusSeq] = useState<Record<string, number>>({});
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const [usageBridge, setUsageBridge] = useState<Record<string, UsageBridgeStatus>>({});
+  const [usageLimits, setUsageLimits] = useState<Record<string, UsageLimits>>({});
   // FIFO of pending consent asks, at most one per provider (a re-ask replaces that provider's entry in place). The
   // HEAD is what the Intro renders; answering, dismissing, or mooting it advances to the next provider's ask rather
   // than dropping it — the server sends one request per provider on the same handshake.
@@ -846,6 +858,16 @@ export function useExtensionMessages(
             setConsentQueue((q) => q.filter((r) => r.providerId !== providerId));
           }
         }
+      } else if (msg.type === 'usageBridgeStatus') {
+        if (typeof msg.providerId === 'string' && typeof msg.installed === 'boolean') {
+          const status = msg as unknown as UsageBridgeStatus;
+          setUsageBridge((m) => ({ ...m, [status.providerId]: status }));
+        }
+      } else if (msg.type === 'usageLimits') {
+        if (typeof msg.providerId === 'string') {
+          const limits = msg as unknown as UsageLimits;
+          setUsageLimits((m) => ({ ...m, [limits.providerId]: limits }));
+        }
       } else if (msg.type === 'hooksConsentRequest') {
         if (
           typeof msg.providerId === 'string' &&
@@ -901,6 +923,7 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentContextUsage') {
         const id = msg.id as number;
         os.setAgentContext(id, msg.contextTokens as number, msg.maxContextTokens as number);
+        setAgentContextUsed(id, msg.contextTokens as number, msg.maxContextTokens as number);
       }
     };
     const unsubscribe = transport.onMessage(handler);
@@ -964,6 +987,8 @@ export function useExtensionMessages(
     hooksStatusSeq,
     setHooksEnabled,
     hooksInfoShown,
+    usageBridge,
+    usageLimits,
     consentRequest,
     // Called when a tour ends (answer + Let's Go, the X, Escape) with the providerId that tour was ABOUT, removing
     // that entry so the next provider's ask becomes the head. Keyed by id, not a blind shift: an answered ask's own

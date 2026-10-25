@@ -7,16 +7,10 @@ import {
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
   CHARACTER_SITTING_OFFSET_PX,
-  CONTEXT_CRITICAL_THRESHOLD,
-  CONTEXT_DANGER_THRESHOLD,
   CONTEXT_GAUGE_BG,
-  CONTEXT_GAUGE_COLOR_CRITICAL,
-  CONTEXT_GAUGE_COLOR_DANGER,
-  CONTEXT_GAUGE_COLOR_OK,
-  CONTEXT_GAUGE_COLOR_WARN,
+  CONTEXT_GAUGE_GAP_PX,
   CONTEXT_GAUGE_HEIGHT_PX,
   CONTEXT_GAUGE_WIDTH_PX,
-  CONTEXT_WARN_THRESHOLD,
   OVERLAY_BUBBLE_Z_INDEX,
   OVERLAY_LABEL_SELECTED_Z_INDEX,
   OVERLAY_LABEL_Z_INDEX,
@@ -26,6 +20,7 @@ import {
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import { contextColor } from '../contextGauge.js';
 import type { OfficeState } from '../engine/officeState.js';
 import { overlayProjection } from '../projection.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
@@ -82,13 +77,6 @@ function getActivityText(
   }
 
   return 'Idle';
-}
-
-function getFuelColor(ratio: number): string {
-  if (ratio >= CONTEXT_CRITICAL_THRESHOLD) return CONTEXT_GAUGE_COLOR_CRITICAL;
-  if (ratio >= CONTEXT_DANGER_THRESHOLD) return CONTEXT_GAUGE_COLOR_DANGER;
-  if (ratio >= CONTEXT_WARN_THRESHOLD) return CONTEXT_GAUGE_COLOR_WARN;
-  return CONTEXT_GAUGE_COLOR_OK;
 }
 
 /** A speech-bubble sprite blitted into a DOM canvas. Bubbles live in the DOM
@@ -296,7 +284,10 @@ export function ToolOverlay({
         // Context gauge. Every agent gets one — lead, teammate, adopted,
         // headless — as soon as it has taken a turn. Sub-agents never do: they
         // have no session of their own, so contextTokens stays 0.
+        // Drawn as a health bar: full when the context is empty, draining as
+        // it fills (the colour still warns by the share used).
         const contextRatio = ch.contextTokens / ch.maxContextTokens;
+        const contextLeft = Math.max(0, 1 - contextRatio);
         const showContextGauge = !isSub && ch.contextTokens > 0;
 
         return (
@@ -374,17 +365,17 @@ export function ToolOverlay({
                     width: CONTEXT_GAUGE_WIDTH_PX,
                     height: CONTEXT_GAUGE_HEIGHT_PX,
                     background: CONTEXT_GAUGE_BG,
-                    marginTop: 2,
+                    marginTop: CONTEXT_GAUGE_GAP_PX,
                   }}
-                  title={`${Math.round(contextRatio * 100)}% context used (${(ch.contextTokens / 1000).toFixed(0)}k of ${(ch.maxContextTokens / 1000).toFixed(0)}k tokens)`}
+                  title={`${Math.round(contextLeft * 100)}% context left (${(ch.contextTokens / 1000).toFixed(0)}k of ${(ch.maxContextTokens / 1000).toFixed(0)}k tokens used)`}
                   data-testid="context-gauge"
                   data-context-pct={Math.round(contextRatio * 100)}
                 >
                   <div
                     style={{
-                      width: `${Math.min(contextRatio * 100, 100)}%`,
+                      width: `${contextLeft * 100}%`,
                       height: '100%',
-                      background: getFuelColor(contextRatio),
+                      background: contextColor(contextRatio),
                     }}
                   />
                 </div>
