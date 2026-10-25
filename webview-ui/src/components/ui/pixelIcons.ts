@@ -186,8 +186,3 @@ export const ICONS = {
 } as const satisfies Record<string, readonly string[]>;
 
 export type PixelIconName = keyof typeof ICONS;
-
-/** An icon's rows, for drawing it somewhere other than the DOM (the canvas). */
-export function pixelIconGrid(name: PixelIconName): readonly string[] {
-  return ICONS[name];
-}

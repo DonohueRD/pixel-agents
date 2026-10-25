@@ -186,8 +186,6 @@ export const VISUAL_COLOR_PICKER_SWATCH_PX = 22;
 export const VISUAL_COLOR_PICKER_POPUP_GAP_PX = 6;
 /** The hex field's border + left padding: where its pixel-font copy starts. */
 export const VISUAL_COLOR_PICKER_HEX_INSET_PX = 2 + 2;
-/** The Characters colour panel's hex field: border + left padding (.chv-pick-hex). */
-export const CHARACTER_HEX_INSET_PX = 2 + 6;
 
 // ── Notification Sound (done: ascending chime) ─────────────
 export const NOTIFICATION_NOTE_1_HZ = 659.25; // E5

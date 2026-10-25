@@ -16,13 +16,10 @@ import { buildEditorRenderState } from '../editor/editorRenderState.js';
 import type { EditorState, SelectionButton } from '../editor/editorState.js';
 import { startGameLoop } from '../engine/gameLoop.js';
 import type { OfficeState } from '../engine/officeState.js';
-import type {
-  DeleteButtonBounds,
-  EditorRenderState,
-  RotateButtonBounds,
-  SelectionRenderState,
-} from '../engine/renderer.js';
+import type { EditorRenderState, SelectionRenderState } from '../engine/renderer.js';
 import { renderFrame } from '../engine/renderer.js';
+import type { ButtonBounds } from '../engine/selectionButtons.js';
+import { selectionButtonAt as buttonAt } from '../engine/selectionButtons.js';
 import { EditTool, TILE_SIZE } from '../types.js';
 import { computeNormalModeCursor } from './officeCanvasCursor.js';
 import { useCanvasTouchGestures } from './useCanvasTouchGestures.js';
@@ -91,8 +88,8 @@ export function OfficeCanvas({
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ mouseX: 0, mouseY: 0, panX: 0, panY: 0 });
   // Delete/rotate button bounds (updated each frame by renderer)
-  const deleteButtonBoundsRef = useRef<DeleteButtonBounds | null>(null);
-  const rotateButtonBoundsRef = useRef<RotateButtonBounds | null>(null);
+  const deleteButtonBoundsRef = useRef<ButtonBounds | null>(null);
+  const rotateButtonBoundsRef = useRef<ButtonBounds | null>(null);
   // Right-click erase dragging
   const isEraseDraggingRef = useRef(false);
   // Zoom scroll accumulator for trackpad pinch sensitivity
@@ -285,34 +282,15 @@ export function OfficeCanvas({
     [screenToWorld, officeState, isEditMode, editorState],
   );
 
-  // Check if device-pixel coords hit the delete button
-  const hitTestDeleteButton = useCallback((deviceX: number, deviceY: number): boolean => {
-    const bounds = deleteButtonBoundsRef.current;
-    if (!bounds) return false;
-    const dx = deviceX - bounds.cx;
-    const dy = deviceY - bounds.cy;
-    // Square, with a little slack around it.
-    return Math.abs(dx) <= bounds.radius + 2 && Math.abs(dy) <= bounds.radius + 2;
-  }, []);
-
-  // Check if device-pixel coords hit the rotate button
-  const hitTestRotateButton = useCallback((deviceX: number, deviceY: number): boolean => {
-    const bounds = rotateButtonBoundsRef.current;
-    if (!bounds) return false;
-    const dx = deviceX - bounds.cx;
-    const dy = deviceY - bounds.cy;
-    return Math.abs(dx) <= bounds.radius + 2 && Math.abs(dy) <= bounds.radius + 2;
-  }, []);
-
   /** Which of the selected item's buttons is under these device-pixel coords. */
   const selectionButtonAt = useCallback(
     (deviceX: number, deviceY: number): SelectionButton | null =>
-      hitTestRotateButton(deviceX, deviceY)
-        ? 'rotate'
-        : hitTestDeleteButton(deviceX, deviceY)
-          ? 'delete'
-          : null,
-    [hitTestRotateButton, hitTestDeleteButton],
+      buttonAt(
+        { delete: deleteButtonBoundsRef.current, rotate: rotateButtonBoundsRef.current },
+        deviceX,
+        deviceY,
+      ),
+    [],
   );
 
   const handleMouseMove = useCallback(

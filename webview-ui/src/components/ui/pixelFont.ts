@@ -4,6 +4,8 @@
  * zoom (PixelText.tsx). Words keep the UI font. Pure (no DOM), Node-tested.
  */
 
+import { gridRuns } from './pixelGrid.js';
+
 /** Glyph rows, '#' = lit. Every glyph is GLYPH_HEIGHT rows tall. */
 export const GLYPHS: Record<string, readonly string[]> = {
   '0': ['###', '#.#', '#.#', '#.#', '###'],
@@ -114,17 +116,7 @@ export function glyphRects(text: string): {
   for (const ch of text) {
     const glyph = GLYPHS[ch];
     if (!glyph) continue;
-    glyph.forEach((row, y) => {
-      let start = -1;
-      for (let x = 0; x <= row.length; x++) {
-        const lit = row[x] === '#';
-        if (lit && start < 0) start = x;
-        if (!lit && start >= 0) {
-          rects.push([x0 + start, y, x - start]);
-          start = -1;
-        }
-      }
-    });
+    rects.push(...gridRuns(glyph, x0));
     x0 += glyph[0].length + GLYPH_GAP;
   }
   return { rects, width: Math.max(0, x0 - GLYPH_GAP) };

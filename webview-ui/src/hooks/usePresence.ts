@@ -4,14 +4,11 @@ import { MENU_POP_OUT_MS } from '../constants.js';
 
 /**
  * Keeps something on screen while its closing animation plays: `mounted` is
- * true while it is open and for `exitMs` after it shuts, with `closing` set
+ * true while it is open and for `MENU_POP_OUT_MS` after it shuts, with `closing` set
  * for that tail. Reopened mid-close, it simply stays (and replays its open).
  * Under reduced motion it goes at once.
  */
-export function usePresence(
-  open: boolean,
-  exitMs: number = MENU_POP_OUT_MS,
-): { mounted: boolean; closing: boolean } {
+export function usePresence(open: boolean): { mounted: boolean; closing: boolean } {
   const [lingering, setLingering] = useState(open);
 
   useEffect(() => {
@@ -23,9 +20,9 @@ export function usePresence(
       setLingering(false);
       return;
     }
-    const timer = setTimeout(() => setLingering(false), exitMs);
+    const timer = setTimeout(() => setLingering(false), MENU_POP_OUT_MS);
     return () => clearTimeout(timer);
-  }, [open, exitMs]);
+  }, [open]);
 
   return { mounted: open || lingering, closing: !open && lingering };
 }

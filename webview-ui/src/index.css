@@ -559,8 +559,3 @@
 .pixel-veil:focus-within .pixel-veil-text {
   display: none;
 }
-
-/* PixelText's glyphs over the office: a hard shadow, like the office's text. */
-.pixel-glyphs-shadow {
-  filter: drop-shadow(1px 1px 0 var(--color-bg-dark));
-}

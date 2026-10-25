@@ -1,6 +1,6 @@
+import { gridRuns, litBox } from '../../components/ui/pixelGrid.js';
 import type { PixelIconName } from '../../components/ui/pixelIcons.js';
-import { pixelIconGrid } from '../../components/ui/pixelIcons.js';
-import { devicePixelsPerArtPixel } from '../../components/ui/pixelSnap.js';
+import { ICONS } from '../../components/ui/pixelIcons.js';
 import type { ColorValue } from '../../components/ui/types.js';
 import {
   AREA_ACTIVE_ALPHA_MULTIPLIER,
@@ -38,10 +38,6 @@ import {
   SEAT_BUSY_COLOR,
   SEAT_OWN_COLOR,
   SELECTED_OUTLINE_ALPHA,
-  SELECTION_BUTTON_GAP_PX,
-  SELECTION_BUTTON_ICON_SCALE,
-  SELECTION_BUTTON_PADDING_PX,
-  SELECTION_BUTTON_SHADOW_PX,
   SELECTION_DASH_PATTERN,
   SELECTION_HIGHLIGHT_COLOR,
   VOID_TILE_DASH_PATTERN,
@@ -73,6 +69,14 @@ import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.j
 import { getCharacterSprite } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
 import { getPetSpriteData } from './petEntity.js';
+import type {
+  ButtonBounds,
+  ButtonGeometry,
+  ButtonPlacement,
+  DeleteButtonBounds,
+  RotateButtonBounds,
+} from './selectionButtons.js';
+import { buttonGeometry, placeSelectionButtons, restingBounds } from './selectionButtons.js';
 
 // ── Settings ────────────────────────────────────────────────────
 
@@ -675,22 +679,6 @@ export function renderSelectionHighlight(
   ctx.restore();
 }
 
-/** The selected item's buttons' geometry, in device pixels. */
-function selectionButtonMetrics(icon: PixelIconName) {
-  const dpr = window.devicePixelRatio || 1;
-  const unit = devicePixelsPerArtPixel(SELECTION_BUTTON_ICON_SCALE, dpr);
-  const pad = Math.round(SELECTION_BUTTON_PADDING_PX * dpr);
-  const grid = pixelIconGrid(icon);
-  return {
-    grid,
-    unit,
-    pad,
-    size: grid.length * unit + pad * 2,
-    shadow: Math.max(1, Math.round(SELECTION_BUTTON_SHADOW_PX * dpr)),
-    gap: Math.round(SELECTION_BUTTON_GAP_PX * dpr),
-  };
-}
-
 /**
  * One of the selected item's buttons, drawn like the app's own: a square in a
  * solid brand colour with a hard shadow and an 8×8 pixel icon in white, every
@@ -702,34 +690,22 @@ function selectionButtonMetrics(icon: PixelIconName) {
  */
 function renderSelectionButton(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
+  geometry: ButtonGeometry,
+  at: { x: number; y: number },
   colors: { idle: string; lit: string },
   icon: PixelIconName,
   state: 'idle' | 'hover' | 'pressed',
 ): ButtonBounds {
-  const { grid, unit, size, shadow } = selectionButtonMetrics(icon);
-  x = Math.round(x);
-  y = Math.round(y);
-  const bounds = { cx: x + size / 2, cy: y + size / 2, radius: size / 2 };
+  const { unit, size, shadow } = geometry;
+  const grid = ICONS[icon];
+  // Hit-tested where it rests, so sinking never moves it out from under the pointer.
+  const bounds = restingBounds(at.x, at.y, geometry);
   const sink = state === 'pressed' ? Math.ceil(shadow / 2) : 0;
-  x += sink;
-  y += sink;
+  const x = Math.round(at.x) + sink;
+  const y = Math.round(at.y) + sink;
 
   // The lit pixels' box, to centre the glyph rather than its grid.
-  let minX = Infinity;
-  let maxX = -1;
-  let minY = Infinity;
-  let maxY = -1;
-  grid.forEach((row, iy) => {
-    for (let ix = 0; ix < row.length; ix++) {
-      if (row[ix] !== '#') continue;
-      minX = Math.min(minX, ix);
-      maxX = Math.max(maxX, ix);
-      minY = Math.min(minY, iy);
-      maxY = Math.max(maxY, iy);
-    }
-  });
+  const { minX, maxX, minY, maxY } = litBox(grid);
   const left = x + Math.round((size - (maxX - minX + 1) * unit) / 2) - minX * unit;
   const top = y + Math.round((size - (maxY - minY + 1) * unit) / 2) - minY * unit;
 
@@ -739,55 +715,38 @@ function renderSelectionButton(
   ctx.fillStyle = state === 'idle' ? colors.idle : colors.lit;
   ctx.fillRect(x, y, size, size);
   ctx.fillStyle = BUTTON_ICON_COLOR;
-  grid.forEach((row, iy) => {
-    for (let ix = 0; ix < row.length; ix++) {
-      if (row[ix] === '#') ctx.fillRect(left + ix * unit, top + iy * unit, unit, unit);
-    }
-  });
+  for (const [ix, iy, w] of gridRuns(grid)) {
+    ctx.fillRect(left + ix * unit, top + iy * unit, w * unit, unit);
+  }
   ctx.restore();
-  // Hit-tested where it rests, so sinking never moves it out from under the pointer.
   return bounds;
 }
 
-/**
- * The selected item's buttons, in a row just above it (never over it),
- * flush with its right edge: rotate (when it rotates), then delete. An item
- * at the top of the screen gets them just below it instead, and the row is
- * kept inside the canvas's left edge.
- */
+/** The selected item's buttons (selectionButtons.ts places them), and where
+ *  each one rests for the hit test. */
 function renderSelectionButtons(
   ctx: CanvasRenderingContext2D,
-  col: number,
-  row: number,
-  w: number,
-  h: number,
-  offsetX: number,
-  offsetY: number,
-  zoom: number,
-  rotatable: boolean,
+  placement: ButtonPlacement,
   hovered: SelectionButton | null,
   pressed: SelectionButton | null,
 ): { deleteButton: DeleteButtonBounds; rotateButton: RotateButtonBounds | null } {
   const stateOf = (b: SelectionButton) =>
     pressed === b ? 'pressed' : hovered === b && pressed === null ? 'hover' : 'idle';
-  const s = TILE_SIZE * zoom;
-  const { size, gap } = selectionButtonMetrics('close');
-  const above = offsetY + row * s - gap - size;
-  const y = above >= gap ? above : offsetY + (row + h) * s + gap;
-  const right = Math.max(offsetX + (col + w) * s, (rotatable ? size * 2 + gap : size) + gap);
+  const geometry = buttonGeometry(window.devicePixelRatio || 1);
+  const spots = placeSelectionButtons(placement, geometry);
   const deleteButton = renderSelectionButton(
     ctx,
-    right - size,
-    y,
+    geometry,
+    spots.delete,
     { idle: DELETE_BUTTON_BG, lit: DELETE_BUTTON_HOVER_BG },
     'close',
     stateOf('delete'),
   );
-  const rotateButton = rotatable
+  const rotateButton = spots.rotate
     ? renderSelectionButton(
         ctx,
-        right - size * 2 - gap,
-        y,
+        geometry,
+        spots.rotate,
         { idle: ROTATE_BUTTON_BG, lit: ROTATE_BUTTON_HOVER_BG },
         'reset',
         stateOf('rotate'),
@@ -833,18 +792,6 @@ function renderPetBubbles(
     ctx.restore();
   }
 }
-
-export interface ButtonBounds {
-  /** Center X in device pixels */
-  cx: number;
-  /** Center Y in device pixels */
-  cy: number;
-  /** Half its side in device pixels (the buttons are square) */
-  radius: number;
-}
-
-export type DeleteButtonBounds = ButtonBounds;
-export type RotateButtonBounds = ButtonBounds;
 
 /** One translucent preview sprite at a target tile. */
 export interface GhostSprite {
@@ -1025,14 +972,16 @@ export function renderFrame(
       );
       const buttons = renderSelectionButtons(
         ctx,
-        editor.selectedCol,
-        editor.selectedRow,
-        editor.selectedW,
-        editor.selectedH,
-        offsetX,
-        offsetY,
-        zoom,
-        editor.isRotatable,
+        {
+          col: editor.selectedCol,
+          row: editor.selectedRow,
+          w: editor.selectedW,
+          h: editor.selectedH,
+          offsetX,
+          offsetY,
+          zoom,
+          rotatable: editor.isRotatable,
+        },
         editor.hoveredButton,
         editor.pressedButton,
       );
