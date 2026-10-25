@@ -574,10 +574,6 @@
   }
 }
 
-.usage-text {
-  text-shadow: 1px 1px 0 var(--color-bg-dark);
-}
-
 /* PixelInputText: the field's own text hides behind the pixel-font copy
    until the field is focused for editing. */
 .pixel-veil:not(:focus-within) input {
@@ -587,8 +583,12 @@
   display: none;
 }
 
-/* PixelText's glyphs over the office: the same hard shadow as .usage-text. */
-.pixel-glyphs-shadow {
+/* PixelText over the office (its `shadow`): one hard dark shadow under the
+   words and the same under the pixel-font glyphs. */
+.pixel-text-shadow {
+  text-shadow: 1px 1px 0 var(--color-bg-dark);
+}
+.pixel-text-shadow svg {
   filter: drop-shadow(1px 1px 0 var(--color-bg-dark));
 }
 

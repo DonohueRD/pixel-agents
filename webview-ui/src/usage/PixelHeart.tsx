@@ -1,4 +1,6 @@
+import { colorRuns } from '../components/ui/pixelGrid.js';
 import { devicePixelsPerArtPixel } from '../components/ui/pixelSnap.js';
+import { PixelSvg } from '../components/ui/PixelSvg.js';
 import { PIXEL_ICON_SCALE, USAGE_HEART_COLORS } from '../constants.js';
 import { useDevicePixelRatio } from '../hooks/useDevicePixelRatio.js';
 
@@ -42,41 +44,15 @@ function PixelArt({
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const cols = grid[0].length;
-  const rects: React.ReactNode[] = [];
-  grid.forEach((row, y) => {
-    let x = 0;
-    while (x < row.length) {
-      const c = row[x];
-      let end = x + 1;
-      while (row[end] === c) end++;
-      if (c !== '.') {
-        rects.push(
-          <rect
-            key={`${y}:${x}`}
-            x={x}
-            y={y}
-            width={end - x}
-            height={1}
-            fill={USAGE_HEART_COLORS[c]}
-          />,
-        );
-      }
-      x = end;
-    }
-  });
   return (
-    <svg
-      width={cols * unit}
-      height={grid.length * unit}
-      viewBox={`0 0 ${cols} ${grid.length}`}
-      shapeRendering="crispEdges"
-      aria-hidden="true"
-      className={`shrink-0 ${className ?? ''}`}
+    <PixelSvg
+      rects={colorRuns(grid).map(([x, y, w, ch]) => [x, y, w, USAGE_HEART_COLORS[ch]] as const)}
+      width={grid[0].length}
+      height={grid.length}
+      unit={unit}
+      className={className}
       style={style}
-    >
-      {rects}
-    </svg>
+    />
   );
 }
 

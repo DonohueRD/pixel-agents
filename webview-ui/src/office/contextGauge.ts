@@ -22,6 +22,11 @@ export function contextColor(usedRatio: number): string {
   return CONTEXT_GAUGE_COLOR_OK;
 }
 
+/** Share of the context left (0-1), what the gauge fills: a health bar. */
+export function contextLeft(usedRatio: number): number {
+  return Math.max(0, 1 - usedRatio);
+}
+
 // Each agent's share used, as the latest agentContextUsage said (the server
 // re-sends them on every connect). React reads it per card, so a card
 // re-renders when its own agent's context moves.

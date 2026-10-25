@@ -1,9 +1,6 @@
-import {
-  CARD_CONTEXT_BAR_HEIGHT_PX,
-  CARD_MUGSHOT_CROP_TOP_ROW,
-  CONTEXT_GAUGE_BG,
-} from '../constants.js';
-import { contextColor, useAgentContextUsed } from '../office/contextGauge.js';
+import { CARD_CONTEXT_BAR_HEIGHT_PX, CARD_MUGSHOT_CROP_TOP_ROW } from '../constants.js';
+import { ContextBar } from '../office/ContextBar.js';
+import { contextLeft, useAgentContextUsed } from '../office/contextGauge.js';
 import type { CardVariant, CloseMode } from './cardBar.js';
 import { CharacterMugShot } from './CharacterMugShot.js';
 import { Button } from './ui/Button.js';
@@ -111,17 +108,13 @@ export function AgentCard({
       {/* The agent's context left, along the card's whole foot (the same
           gauge as over its character); none before its first turn. */}
       {contextUsed !== null && (
-        <div
+        <ContextBar
+          used={contextUsed}
+          height={CARD_CONTEXT_BAR_HEIGHT_PX}
           className="absolute left-0 right-0 bottom-0 pointer-events-none"
-          style={{ height: CARD_CONTEXT_BAR_HEIGHT_PX, background: CONTEXT_GAUGE_BG }}
-          title={`${Math.round((1 - contextUsed) * 100)}% context left`}
-          data-testid="card-context-bar"
-        >
-          <div
-            className="h-full"
-            style={{ width: `${(1 - contextUsed) * 100}%`, background: contextColor(contextUsed) }}
-          />
-        </div>
+          title={`${Math.round(contextLeft(contextUsed) * 100)}% context left`}
+          testId="card-context-bar"
+        />
       )}
     </div>
   );

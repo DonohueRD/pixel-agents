@@ -21,7 +21,8 @@ export function PixelText({
   text: string;
   /** CSS pixels per glyph pixel. Whole numbers only. */
   scale?: number;
-  /** A hard dark shadow under the glyphs, for text drawn over the office. */
+  /** A hard dark shadow under the text and the glyphs alike, for text drawn
+   *  over the office (`.pixel-text-shadow`). */
   shadow?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -29,7 +30,10 @@ export function PixelText({
   const dpr = useDevicePixelRatio();
   const unit = devicePixelsPerArtPixel(scale, dpr) / dpr;
   return (
-    <span className={`inline-flex items-center whitespace-nowrap ${className}`} style={style}>
+    <span
+      className={`inline-flex items-center whitespace-nowrap ${shadow ? 'pixel-text-shadow ' : ''}${className}`}
+      style={style}
+    >
       {splitLabel(text).map((part, i) => {
         if (!part.glyphs) {
           return (
@@ -39,16 +43,7 @@ export function PixelText({
           );
         }
         const { rects, width } = glyphRects(part.text);
-        return (
-          <PixelSvg
-            key={i}
-            rects={rects}
-            width={width}
-            height={GLYPH_HEIGHT}
-            unit={unit}
-            className={shadow ? 'pixel-glyphs-shadow' : ''}
-          />
-        );
+        return <PixelSvg key={i} rects={rects} width={width} height={GLYPH_HEIGHT} unit={unit} />;
       })}
       <span className="sr-only">{text}</span>
     </span>

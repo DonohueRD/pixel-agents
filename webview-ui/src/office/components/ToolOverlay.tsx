@@ -7,7 +7,6 @@ import {
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
   CHARACTER_SITTING_OFFSET_PX,
-  CONTEXT_GAUGE_BG,
   CONTEXT_GAUGE_GAP_PX,
   CONTEXT_GAUGE_HEIGHT_PX,
   CONTEXT_GAUGE_WIDTH_PX,
@@ -20,7 +19,8 @@ import {
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
-import { contextColor } from '../contextGauge.js';
+import { ContextBar } from '../ContextBar.js';
+import { contextLeft } from '../contextGauge.js';
 import type { OfficeState } from '../engine/officeState.js';
 import { overlayProjection } from '../projection.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
@@ -287,7 +287,6 @@ export function ToolOverlay({
         // Drawn as a health bar: full when the context is empty, draining as
         // it fills (the colour still warns by the share used).
         const contextRatio = ch.contextTokens / ch.maxContextTokens;
-        const contextLeft = Math.max(0, 1 - contextRatio);
         const showContextGauge = !isSub && ch.contextTokens > 0;
 
         return (
@@ -360,25 +359,15 @@ export function ToolOverlay({
                 )}
               </div>
               {showContextGauge && (
-                <div
-                  style={{
-                    width: CONTEXT_GAUGE_WIDTH_PX,
-                    height: CONTEXT_GAUGE_HEIGHT_PX,
-                    background: CONTEXT_GAUGE_BG,
-                    marginTop: CONTEXT_GAUGE_GAP_PX,
-                  }}
-                  title={`${Math.round(contextLeft * 100)}% context left (${(ch.contextTokens / 1000).toFixed(0)}k of ${(ch.maxContextTokens / 1000).toFixed(0)}k tokens used)`}
-                  data-testid="context-gauge"
-                  data-context-pct={Math.round(contextRatio * 100)}
-                >
-                  <div
-                    style={{
-                      width: `${contextLeft * 100}%`,
-                      height: '100%',
-                      background: contextColor(contextRatio),
-                    }}
-                  />
-                </div>
+                <ContextBar
+                  used={contextRatio}
+                  width={CONTEXT_GAUGE_WIDTH_PX}
+                  height={CONTEXT_GAUGE_HEIGHT_PX}
+                  style={{ marginTop: CONTEXT_GAUGE_GAP_PX }}
+                  title={`${Math.round(contextLeft(contextRatio) * 100)}% context left (${(ch.contextTokens / 1000).toFixed(0)}k of ${(ch.maxContextTokens / 1000).toFixed(0)}k tokens used)`}
+                  testId="context-gauge"
+                  pct={Math.round(contextRatio * 100)}
+                />
               )}
             </div>
           </Fragment>

@@ -102,7 +102,7 @@ webview-ui/                          React 19 + Canvas UI (depends only on core/
       ui/pixelGrid.ts                gridRuns / litBox: a '#' grid as horizontal runs and its lit box, for the SVGs and the canvas alike (DOM-free)
       ui/PixelSvg.tsx                The one pixel-art SVG (runs as rects, crispEdges) behind PixelIcon and PixelText
       ui/PixelIcon.tsx               PixelIcon renderer (whole device pixels per icon pixel, pixelSnap.ts)
-      AgentCard.tsx                  One agent card (mug shot + status dot + ×, its context left along the foot — office/contextGauge.ts, shared with the label's gauge)
+      AgentCard.tsx                  One agent card (mug shot + status dot + ×, its context left along the foot — office/contextGauge.ts + office/ContextBar.tsx, shared with the label's gauge)
       AgentCardList.tsx              The card bar's cards for BOTH shells: same agents, same server-owned order, same reorder + highlight rules, focused card kept in view; AgentCardBar (desktop/VS Code column) and MobileAgentBar (phone row) only wrap it
       useCardReorder.ts              Drag-to-reorder: touch long-press (phone) or mouse drag (desktop), along the bar's axis; previews, then commits
       cardBar.ts                     Pure card-bar rules: cardOrderOf (main agents only — Teammates get none — in the saved order, via mergeOrder), cardVariant, closeMode (the ×), reorderByPointer (Node-tested)
@@ -112,7 +112,7 @@ webview-ui/                          React 19 + Canvas UI (depends only on core/
       MobileAgentBar.tsx             Mobile bottom bar: the + launch card, then the AgentCardList row
       MobileTerminalPage.tsx         Mobile terminal page (a TerminalPaneStack)
       MobileKeyBar.tsx               Accessory keys above the software keyboard (/, tab, shift+tab, the square arrow trackpad centred on the bar, esc, forward del, line break)
-    usage/                           UsageBars (top-left, no panel: heart + weekly bar over an equal 5-hour bar, % inside each; hover/tap any of it = the heart beats and each bar's reset time shows right of it) + PixelHeart (multi-colour art; the beat flashes a one-pixel-bigger frame) (numbers through PixelText) + usageBarView (pure: share left, colour band, reset-since-report = full, heartbeat period, freshness)
+    usage/                           UsageBars (top-left, no panel: heart + weekly bar over an equal 5-hour bar, % inside each; hover/tap any of it = the heart beats and each bar's reset time shows right of it) + PixelHeart (multi-colour art through PixelSvg + pixelGrid `colorRuns`; the beat flashes a one-pixel-bigger frame) (numbers through PixelText) + usageBarView (pure: share left, colour band, reset-since-report = full, heartbeat period, freshness) + usageStore (each provider's usageBridgeStatus/usageLimits outside React; `seq` counts status arrivals) + useUsageBridge (status, limits, this caller's `pending` request — answered by the next ARRIVAL, since a failed install re-reports the same value — and `setEnabled`; read by the Intro, Settings and App)
     mobile/                          The phone shell (standalone only, see "Mobile shell")
       MobileShell.tsx                Sliding office/terminal track + card bar + key bar
       useMobileShell.ts              Page state and navigation rules (toggle, card tap, launch-then-slide)
@@ -440,7 +440,7 @@ Every agent's context gauge. Fed from `message.usage` on assistant records by `p
 - **`seedContextUsage` runs once per agent in `startFileWatching`** — the single seam every watched agent passes through. Agents adopted or restored mid-session start at end-of-file, so without a tail read they'd have no gauge until their next turn.
 - **The CLI's own number wins.** With Usage Bars on, the status line bridge also reports each session's `context_window` (`used_percentage` + `context_window_size`); `applyReportedContext` sets the agent running that session to it and keeps the reported window (`reportedContextWindow`) for its later transcript estimates, so the gauge reads what the status line reads.
 - Sub-agents get no gauge: no session of their own, and the shadow store never forwards `agentContextUsage`.
-- **Drawn as a health bar**: the fill is the context LEFT (full when empty, draining as it fills), the colour still warns by the share used, in the user's status line steps (green < 33% used, yellow — the usage bars' — to 66%, red past it); `data-context-pct` stays the share used (e2e reads it).
+- **Drawn as a health bar** (`office/ContextBar.tsx`, the card's and the label's alike): the fill is the context LEFT (full when empty, draining as it fills), the colour still warns by the share used, in the user's status line steps (green < 33% used, yellow — the usage bars' — to 66%, red past it); `data-context-pct` stays the share used (e2e reads it).
 
 ## Usage bars
 

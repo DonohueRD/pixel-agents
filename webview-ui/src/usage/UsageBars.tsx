@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { UsageLimits } from '../../../core/src/messages.js';
 import { PixelText } from '../components/ui/PixelText.js';
 import {
+  CONTEXT_GAUGE_COLOR_YELLOW,
   USAGE_BAR_HEIGHT_PX,
   USAGE_BAR_TICK_MS,
   USAGE_BAR_WIDTH_PX,
@@ -24,7 +25,7 @@ type BarId = 'weekly' | 'fiveHour';
 const FILL: Record<BarId, Record<UsageBarView['level'], string>> = {
   weekly: {
     ok: 'var(--color-status-success)',
-    warn: 'var(--color-status-permission)',
+    warn: CONTEXT_GAUGE_COLOR_YELLOW,
     low: 'var(--color-danger)',
     unknown: 'transparent',
   },
@@ -58,32 +59,18 @@ function useNow(intervalMs: number): number {
 /** A bar's name and when it resets: "Weekly · resets in 3d 11h". */
 function ResetLabel({ id, view }: { id: BarId; view: UsageBarView }) {
   return (
-    <PixelText
-      text={`${BAR_NAME[id]} · ${view.reset}`}
-      shadow
-      className="text-2xs text-text usage-text"
-    />
+    <PixelText text={`${BAR_NAME[id]} · ${view.reset}`} shadow className="text-2xs text-text" />
   );
 }
 
 /** One bar with its share left printed inside, and (while the section is
  *  hovered or tapped) when it resets, just right of it. */
-function BarRow({
-  id,
-  view,
-  height,
-  showReset,
-}: {
-  id: BarId;
-  view: UsageBarView;
-  height: number;
-  showReset: boolean;
-}) {
+function BarRow({ id, view, showReset }: { id: BarId; view: UsageBarView; showReset: boolean }) {
   return (
     <div className="flex items-center gap-4">
       <div
         className="relative bg-bg-dark border-2 border-border box-content flex items-center pl-4"
-        style={{ width: USAGE_BAR_WIDTH_PX, height }}
+        style={{ width: USAGE_BAR_WIDTH_PX, height: USAGE_BAR_HEIGHT_PX }}
       >
         <div
           className="absolute left-0 top-0 bottom-0"
@@ -92,7 +79,7 @@ function BarRow({
             background: FILL[id][view.level],
           }}
         />
-        <PixelText text={view.percent} shadow className="relative text-2xs text-text usage-text" />
+        <PixelText text={view.percent} shadow className="relative text-2xs text-text" />
       </div>
       {showReset && <ResetLabel id={id} view={view} />}
     </div>
@@ -123,6 +110,8 @@ export function UsageBars({ limits, mobile }: UsageBarsProps) {
   }, [mobile, active]);
   const weekly = usageBarView(limits?.sevenDay, now);
   const fiveHour = usageBarView(limits?.fiveHour, now);
+  // Reset times: right of each bar on a desktop, below the bars on a phone.
+  const showResetBeside = active && !mobile;
 
   return (
     <div
@@ -139,18 +128,8 @@ export function UsageBars({ limits, mobile }: UsageBarsProps) {
     >
       <PixelHeart periodSec={active ? heartBeatPeriodSec(weekly.remaining) : null} />
       <div className="flex flex-col gap-2">
-        <BarRow
-          id="weekly"
-          view={weekly}
-          height={USAGE_BAR_HEIGHT_PX}
-          showReset={active && !mobile}
-        />
-        <BarRow
-          id="fiveHour"
-          view={fiveHour}
-          height={USAGE_BAR_HEIGHT_PX}
-          showReset={active && !mobile}
-        />
+        <BarRow id="weekly" view={weekly} showReset={showResetBeside} />
+        <BarRow id="fiveHour" view={fiveHour} showReset={showResetBeside} />
       </div>
       {active && mobile && (
         <div className="absolute top-full left-0 mt-6 flex flex-col gap-4 pointer-events-none">
