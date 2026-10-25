@@ -105,13 +105,9 @@ const BODIES: Record<string, { eyes: string; utop: boolean }> = {
 export const startingUtop = (body: string): string | undefined =>
   BODIES[body]?.utop ? UNDERWEAR : undefined;
 
-/**
- * A piece of the sheet: `pix` names it (and its art folder), `sel` the slot whose part picks
- * it; the body's own pieces (underwear, eyes) are picked by the body.
- */
-export interface LayerDef {
+/** What every piece of the sheet has: `pix` names it (and its art folder). */
+interface LayerBase {
   pix: string;
-  sel: SlotKey | 'eyeShape';
   /** The colour it takes; the first piece with a colour key owns that colour's colourways. */
   color: ColorKey | null;
   /** Its name in the pixel editor. */
@@ -120,20 +116,35 @@ export interface LayerDef {
   chip: number;
   /** Underwear: drawn only while nothing covers it. */
   when?: Underwear;
-  /** Lives in the eye-shape folder (eyes/<shape>/<pix>.png). */
-  eye?: boolean;
-  /** Comes in one sheet per eye-row variant (<pix>.<rows>.png). */
-  rows?: boolean;
   /** In the back view (the up row) this piece goes under that earlier one instead of over it. */
   behind?: string;
   /** Shipped near-gray on every body: its sliders are colorize-only (underwear). */
   neutral?: boolean;
 }
 
+/** A piece a slot's part picks (<pix>/<part>.png); the body's own pieces are picked by the body. */
+export interface PartLayer extends LayerBase {
+  kind: 'part';
+  sel: SlotKey;
+}
+
+/** A piece of the eyes, drawn from the eye-shape folder (eyes/<shape>/<pix>.png). */
+export interface EyeLayer extends LayerBase {
+  kind: 'eye';
+  /** What its pixel edits are filed under: the eye shape, or the body (the shape's when it is drawn). */
+  filedBy: 'shape' | 'body';
+  /** Comes in one sheet per eye-row variant (<pix>.<rows>.png). */
+  rows?: boolean;
+}
+
+/** A piece of the sheet. */
+export type LayerDef = PartLayer | EyeLayer;
+
 /** Draw order, bottom to top. */
 export const LAYERS: readonly LayerDef[] = [
-  { pix: 'body', sel: 'body', color: 'skin', label: 'Body', chip: 0 },
+  { kind: 'part', pix: 'body', sel: 'body', color: 'skin', label: 'Body', chip: 0 },
   {
+    kind: 'part',
     pix: 'under',
     sel: 'body',
     color: 'under',
@@ -143,6 +154,7 @@ export const LAYERS: readonly LayerDef[] = [
     neutral: true,
   },
   {
+    kind: 'part',
     pix: 'utop',
     sel: 'body',
     color: 'utop',
@@ -151,19 +163,27 @@ export const LAYERS: readonly LayerDef[] = [
     when: 'utop',
     neutral: true,
   },
-  { pix: 'whites', sel: 'body', color: null, label: 'Eyes', chip: 1, eye: true }, // whites and pupils, never recoloured
-  { pix: 'iris', sel: 'body', color: 'eyes', label: 'Iris', chip: 2, eye: true, rows: true },
-  { pix: 'lashes', sel: 'eyeShape', color: 'lashes', label: 'Lashes', chip: 3, eye: true },
-  { pix: 'pants', sel: 'pants', color: 'pants', label: 'Pants', chip: 10 },
-  { pix: 'top', sel: 'top', color: 'top', label: 'Top', chip: 8 },
-  { pix: 'full', sel: 'full', color: 'full', label: 'Outfit', chip: 12 },
-  { pix: 'jacket', sel: 'jacket', color: 'jacket', label: 'Jacket', chip: 9 }, // over the top or the outfit
-  { pix: 'lanyard', sel: 'lanyard', color: 'lanyard', label: 'Lanyard', chip: 15 },
-  { pix: 'necklace', sel: 'necklace', color: 'necklace', label: 'Necklace', chip: 14 },
-  { pix: 'watch', sel: 'watch', color: 'watch', label: 'Wristband', chip: 19 },
-  { pix: 'shoes', sel: 'shoes', color: 'shoes', label: 'Shoes', chip: 11 },
-  { pix: 'hair', sel: 'hair', color: 'hair', label: 'Hair', chip: 7 },
+  { kind: 'eye', pix: 'whites', filedBy: 'body', color: null, label: 'Eyes', chip: 1 }, // whites and pupils, never recoloured
+  { kind: 'eye', pix: 'iris', filedBy: 'body', color: 'eyes', label: 'Iris', chip: 2, rows: true },
+  { kind: 'eye', pix: 'lashes', filedBy: 'shape', color: 'lashes', label: 'Lashes', chip: 3 },
+  { kind: 'part', pix: 'pants', sel: 'pants', color: 'pants', label: 'Pants', chip: 10 },
+  { kind: 'part', pix: 'top', sel: 'top', color: 'top', label: 'Top', chip: 8 },
+  { kind: 'part', pix: 'full', sel: 'full', color: 'full', label: 'Outfit', chip: 12 },
+  { kind: 'part', pix: 'jacket', sel: 'jacket', color: 'jacket', label: 'Jacket', chip: 9 }, // over the top or the outfit
+  { kind: 'part', pix: 'lanyard', sel: 'lanyard', color: 'lanyard', label: 'Lanyard', chip: 15 },
   {
+    kind: 'part',
+    pix: 'necklace',
+    sel: 'necklace',
+    color: 'necklace',
+    label: 'Necklace',
+    chip: 14,
+  },
+  { kind: 'part', pix: 'watch', sel: 'watch', color: 'watch', label: 'Wristband', chip: 19 },
+  { kind: 'part', pix: 'shoes', sel: 'shoes', color: 'shoes', label: 'Shoes', chip: 11 },
+  { kind: 'part', pix: 'hair', sel: 'hair', color: 'hair', label: 'Hair', chip: 7 },
+  {
+    kind: 'part',
     pix: 'earrings',
     sel: 'earrings',
     color: 'earrings',
@@ -171,16 +191,17 @@ export const LAYERS: readonly LayerDef[] = [
     chip: 16,
     behind: 'hair', // over the hair, under it from behind
   },
-  { pix: 'beard', sel: 'beard', color: 'beard', label: 'Beard', chip: 20 }, // over the hair, under sunglasses
-  { pix: 'shades', sel: 'shades', color: 'shades', label: 'Glasses', chip: 17 },
+  { kind: 'part', pix: 'beard', sel: 'beard', color: 'beard', label: 'Beard', chip: 20 }, // over the hair, under sunglasses
+  { kind: 'part', pix: 'shades', sel: 'shades', color: 'shades', label: 'Glasses', chip: 17 },
   {
+    kind: 'part',
     pix: 'hairshades',
     sel: 'hairshades',
     color: 'hairshades',
     label: 'Shades on hair',
     chip: 18,
   },
-  { pix: 'hat', sel: 'hat', color: 'hat', label: 'Hat', chip: 13 },
+  { kind: 'part', pix: 'hat', sel: 'hat', color: 'hat', label: 'Hat', chip: 13 },
 ];
 
 export const layerOf = (pix: string): LayerDef => {
@@ -293,10 +314,10 @@ export const EYE_FOLDERS: readonly string[] = [
 
 /** The part id a layer's pixel edits are filed under ('<piece>:<id>'). */
 function editId(p: RenderProfile, layer: LayerDef): string | undefined {
-  if (!layer.eye) return layer.sel === 'eyeShape' ? undefined : p[layer.sel];
+  if (layer.kind === 'part') return p[layer.sel];
   // lashes by eye shape; whites and iris by body, but by shape for a drawn shape
   const shape = shownEyes(p);
-  return layer.sel === 'eyeShape' || shape.drawn ? shape.id : p.body;
+  return layer.filedBy === 'shape' || shape.drawn ? shape.id : p.body;
 }
 
 /** The key a piece's pixel edits are filed under ('<piece>:<part id>'). */
@@ -324,14 +345,13 @@ export interface Art {
  * a part's '<piece>/<id>', the body's '<piece>/<body>', or its eye art.
  */
 function layerArt(p: RenderProfile, layer: LayerDef): Art | null {
-  if (layer.eye) {
+  if (layer.kind === 'eye') {
     const rows = layer.rows ? (p.eyeRows ?? DEFAULT_EYE_ROWS) : undefined;
     return { path: eyeArt(eyeFolder(p, layer), layer.pix, rows), layer, part: null };
   }
-  const id = layer.sel === 'eyeShape' ? undefined : p[layer.sel];
+  const id = p[layer.sel];
   if (!id) return null;
-  const part = layer.sel === 'body' ? p.body : id;
-  return { path: partArt(layer.pix, part), layer, part };
+  return { path: partArt(layer.pix, id), layer, part: id };
 }
 
 /** The art a layer draws on this profile, or null when it doesn't show (underwear covered). */
