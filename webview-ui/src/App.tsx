@@ -12,6 +12,7 @@ import { IntroBubble } from './components/IntroBubble.js';
 import { MigrationNotice } from './components/MigrationNotice.js';
 import { SettingsModal } from './components/SettingsModal.js';
 import { TerminalDrawer } from './components/TerminalDrawer.js';
+import { TerminalHideRibbon } from './components/TerminalHideRibbon.js';
 import { Tooltip } from './components/Tooltip.js';
 import { Button } from './components/ui/Button.js';
 import { Modal } from './components/ui/Modal.js';
@@ -26,6 +27,7 @@ import { useExtensionMessages } from './hooks/useExtensionMessages.js';
 import { useIntroTour } from './hooks/useIntroTour.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
+import { popClass, usePresence } from './hooks/usePresence.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
 import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
@@ -84,7 +86,6 @@ function App() {
     selectedAgent,
     agentTools,
     agentStatuses,
-    agentAwaitingInput,
     agentSeenActivity,
     subagentTools,
     subagentCharacters,
@@ -122,6 +123,8 @@ function App() {
     terminalAvailable,
     terminalUnavailableReason,
     terminalAgentIds,
+    cardAgents,
+    saveCardOrder,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -130,6 +133,8 @@ function App() {
 
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // The Layout editor's panel, kept on screen while it rolls shut.
+  const editorPanel = usePresence(editor.isEditMode);
   const [isHooksInfoOpen, setIsHooksInfoOpen] = useState(false);
   const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
@@ -159,11 +164,23 @@ function App() {
     getOfficeState,
     agentTools,
     agentStatuses,
-    agentAwaitingInput,
     agentSeenActivity,
   });
 
+  // A launched agent comes in focused: once its terminal opens (the pane and
+  // the active card already switch to it), select its character so the office
+  // follows it and its card is tinted. Both are async — the server announces
+  // agentCreated, then terminalSessionOpened — so the character exists by the
+  // time the drawer reports the new pane.
+  const focusNextOpenedRef = useRef(false);
+  const { lastOpened } = terminalDrawer;
+  useEffect(() => {
+    if (!lastOpened || !focusNextOpenedRef.current) return;
+    focusNextOpenedRef.current = false;
+    getOfficeState().selectAndFollow(lastOpened.agentId);
+  }, [lastOpened]);
   const launchIntoDirectory = useCallback((directory: Directory) => {
+    focusNextOpenedRef.current = true;
     transport.send({ type: 'launchAgent', directoryPath: directory.path });
   }, []);
   const mobileShell = useMobileShell({
@@ -517,7 +534,7 @@ function App() {
             </div>
           )}
 
-          {editor.isEditMode &&
+          {editorPanel.mounted &&
             (() => {
               const selUid = editorState.selectedFurnitureUid;
               const selColor = selUid
@@ -525,6 +542,7 @@ function App() {
                 : null;
               return (
                 <EditorToolbar
+                  className={popClass(editorPanel.closing)}
                   activeTool={editorState.activeTool}
                   selectedTileType={editorState.selectedTileType}
                   selectedFurnitureType={editorState.placingType}
@@ -568,18 +586,24 @@ function App() {
               );
             })()}
 
-          <ToolOverlay
-            officeState={officeState}
-            agents={agents}
-            agentTools={agentTools}
-            subagentTools={subagentTools}
-            subagentCharacters={subagentCharacters}
-            containerRef={containerRef}
-            zoom={editor.zoom}
-            panRef={editor.panRef}
-            onCloseAgent={handleCloseAgent}
-            alwaysShowOverlay={alwaysShowOverlay}
-          />
+          {/* The office's own layer: the characters' labels and bubbles stack
+              among themselves (OVERLAY_*_Z_INDEX) inside this box, which sits
+              at z 0 — so every piece of UI over the office (zoom buttons,
+              toolbar, cards, editor panels) always draws above them. */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            <ToolOverlay
+              officeState={officeState}
+              agents={agents}
+              agentTools={agentTools}
+              subagentTools={subagentTools}
+              subagentCharacters={subagentCharacters}
+              containerRef={containerRef}
+              zoom={editor.zoom}
+              panRef={editor.panRef}
+              onCloseAgent={handleCloseAgent}
+              alwaysShowOverlay={alwaysShowOverlay}
+            />
+          </div>
         </>
       ) : (
         <DebugView
@@ -641,6 +665,7 @@ function App() {
           onEditDirectory={directoryEditor.edit}
           terminalAvailable={terminalAvailable}
           terminalUnavailableReason={terminalUnavailableReason}
+          onLaunch={launchIntoDirectory}
         />
       )}
 
@@ -653,6 +678,7 @@ function App() {
             variant={isSettingsOpen ? 'active' : 'default'}
             className="border-border! shadow-pixel"
             onClick={() => setIsSettingsOpen((v) => !v)}
+            icon="settings"
           >
             Settings
           </Button>
@@ -708,7 +734,7 @@ function App() {
           office={officeRegion}
           shell={mobileShell}
           drawer={terminalDrawer}
-          agentIds={agents}
+          agentIds={cardAgents}
           terminalAgentIds={terminalAgentIds}
           focusedAgentId={focusedAgentId}
           terminalAvailable={terminalAvailable}
@@ -717,46 +743,51 @@ function App() {
           onAddDirectory={directoryEditor.add}
           onEditDirectory={directoryEditor.edit}
           onCloseAgent={handleCloseAgent}
+          onReorder={officeReadOnly ? undefined : saveCardOrder}
           keyboardOpen={keyboard.keyboardOpen}
         />
       ) : (
         <>
           {officeRegion}
 
+          {/* The same cards, in the same order, as the phone's bar: every
+              main agent, external sessions included. A card with a terminal
+              pane is its tab (standalone); any other raises the agent's
+              editor terminal where there is one (VS Code) and selects its
+              character. */}
+          {!(isDebugMode && !terminalAvailable) && (
+            <AgentCardBar
+              agentIds={cardAgents}
+              activeAgentId={terminalAvailable ? terminalDrawer.shownAgentId : null}
+              focusedAgentId={focusedAgentId}
+              getAppearance={terminalDrawer.getAppearance}
+              statusFor={terminalDrawer.statusFor}
+              onSelect={(id) =>
+                terminalAgentIds.includes(id) ? terminalDrawer.select(id) : handleCardSelect(id)
+              }
+              onClose={handleCloseAgent}
+              onReorder={officeReadOnly ? undefined : saveCardOrder}
+              trailing={
+                terminalAvailable && terminalAgentIds.length > 0 ? (
+                  <TerminalHideRibbon shown={terminalDrawer.isOpen} onHide={terminalDrawer.close} />
+                ) : undefined
+              }
+            />
+          )}
+
           {/* Standalone with a terminal: terminalAvailable is only ever true when
               the server reports a working PTY to a tokened session, which VS
               Code's surface never does. In flow as a flex sibling so the office
-              region reflows beside it instead of being overlaid.
-
-              Otherwise (VS Code, or a watch-only standalone session) the card
-              bar stands alone with every agent in the office, external sessions
-              included — the at-a-glance "who needs attention" strip, with a
-              click raising the agent's editor terminal where there is one. */}
-          {terminalAvailable ? (
+              region reflows beside it instead of being overlaid. */}
+          {terminalAvailable && (
             <TerminalDrawer
               agentIds={terminalAgentIds}
               shownAgentId={terminalDrawer.shownAgentId}
-              onSelectAgent={terminalDrawer.select}
-              onCloseAgent={handleCloseAgent}
               isOpen={terminalDrawer.isOpen}
-              onClosePanel={terminalDrawer.close}
               widthPx={terminalDrawer.widthPx}
               onResizeStart={terminalDrawer.onResizeStart}
-              getAppearance={terminalDrawer.getAppearance}
-              statusFor={terminalDrawer.statusFor}
               onStatusChange={terminalDrawer.onStatusChange}
             />
-          ) : (
-            !isDebugMode && (
-              <AgentCardBar
-                agentIds={agents}
-                focusedAgentId={focusedAgentId}
-                getAppearance={terminalDrawer.getAppearance}
-                statusFor={terminalDrawer.statusFor}
-                onSelect={handleCardSelect}
-                onClose={handleCloseAgent}
-              />
-            )
           )}
         </>
       )}

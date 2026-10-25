@@ -19,6 +19,7 @@ import * as path from 'path';
 
 import type { StateAdapter } from '../../core/src/adapter.js';
 import type { PersistedAgent } from '../../core/src/schemas.js';
+import { parseCardOrder } from './cardOrder.js';
 import type { AdapterSettingKey, AdapterSettings, ConfigNamespace } from './configPersistence.js';
 import { ADAPTER_SETTING_KEYS, readConfig, writeConfig } from './configPersistence.js';
 import { LAYOUT_FILE_DIR } from './constants.js';
@@ -34,9 +35,10 @@ function settingNameOf(key: string): AdapterSettingKey | null {
 interface AdapterState {
   agents: PersistedAgent[];
   seats: Record<string, { palette?: number; hueShift?: number; seatId?: string }>;
+  cardOrder: number[];
 }
 
-const EMPTY_STATE: AdapterState = { agents: [], seats: {} };
+const EMPTY_STATE: AdapterState = { agents: [], seats: {}, cardOrder: [] };
 
 export interface FileStateAdapterOptions {
   namespace: ConfigNamespace;
@@ -95,12 +97,22 @@ export class FileStateAdapter implements StateAdapter {
     this.writeState(state);
   }
 
+  loadCardOrder(): number[] {
+    return this.readState().cardOrder;
+  }
+
+  saveCardOrder(order: number[]): void {
+    const state = this.readState();
+    state.cardOrder = order;
+    this.writeState(state);
+  }
+
   // ── Internal state-file I/O ─────────────────────────────────
 
   private readState(): AdapterState {
     try {
       if (!fs.existsSync(this.stateFilePath)) {
-        return { agents: [], seats: {} };
+        return { ...EMPTY_STATE };
       }
       const raw = fs.readFileSync(this.stateFilePath, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<AdapterState>;
@@ -110,6 +122,7 @@ export class FileStateAdapter implements StateAdapter {
           parsed.seats && typeof parsed.seats === 'object'
             ? (parsed.seats as AdapterState['seats'])
             : {},
+        cardOrder: parseCardOrder(parsed.cardOrder) ?? [],
       };
     } catch (err) {
       console.error('[Pixel Agents] Failed to read adapter state:', err);

@@ -1,12 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
-import { cardVariant, mergeOrder, reorderByPointer } from '../src/components/cardBar.js';
+import {
+  cardAgentIds,
+  cardVariant,
+  mergeOrder,
+  reorderByPointer,
+} from '../src/components/cardBar.js';
 
 describe('cardVariant', () => {
   it('the showing pane wins over the selected character', () => {
     expect(cardVariant(1, { activeId: 1, focusedId: 1 })).toBe('active');
     expect(cardVariant(2, { activeId: 1, focusedId: 2 })).toBe('focused');
     expect(cardVariant(3, { activeId: 1, focusedId: 2 })).toBe('default');
+  });
+});
+
+describe('cardAgentIds', () => {
+  it('only main agents get a card: teammates are left out, in order', () => {
+    expect(cardAgentIds([1, 8, 3, 10], new Set([8, 10]))).toEqual([1, 3]);
+  });
+
+  it('is every agent when there are no teammates', () => {
+    const agents = [1, 2];
+    expect(cardAgentIds(agents, new Set())).toBe(agents);
   });
 });
 

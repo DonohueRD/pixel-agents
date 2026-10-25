@@ -18,6 +18,14 @@ export function cardVariant(
   return 'default';
 }
 
+/** The agents that get a card: main agents only. A Teammate is shown by its
+ *  character beside its Lead, never as a card of its own. Returns `agents`
+ *  itself when nothing is left out, so React sees no change. */
+export function cardAgentIds(agents: number[], teammateIds: ReadonlySet<number>): number[] {
+  if (!agents.some((id) => teammateIds.has(id))) return agents;
+  return agents.filter((id) => !teammateIds.has(id));
+}
+
 /** Saved order first (dropping closed agents), then any new agents appended
  *  in creation order — so a reorder survives launches and closes. */
 export function mergeOrder(saved: readonly number[], live: readonly number[]): number[] {

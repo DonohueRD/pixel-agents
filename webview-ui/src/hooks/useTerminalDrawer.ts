@@ -21,7 +21,6 @@ interface TerminalDrawerInputs {
   getOfficeState: () => OfficeState;
   agentTools: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
-  agentAwaitingInput: Record<number, boolean>;
   agentSeenActivity: Record<number, boolean>;
 }
 
@@ -80,7 +79,6 @@ export function useTerminalDrawer({
   getOfficeState,
   agentTools,
   agentStatuses,
-  agentAwaitingInput,
   agentSeenActivity,
 }: TerminalDrawerInputs): TerminalDrawerController {
   const [activeAgentId, setActiveAgentId] = useState<number | null>(null);
@@ -178,17 +176,19 @@ export function useTerminalDrawer({
 
   // Activity for the tab status dot (green idle / blue working / yellow needs
   // attention). null until the agent's first activity, so the dot stays empty.
+  // Yellow is a permission prompt only: Claude Code's idle_prompt (a finished
+  // turn left unanswered for a minute) is still green, or every idle agent
+  // would turn yellow a minute after it finished.
   const getActivity = useCallback(
     (id: number): AgentActivity | null => {
       if (!agentSeenActivity[id]) return null;
       const tools = agentTools[id];
       if (tools?.some((t) => t.permissionWait && !t.done)) return 'attention';
       if (tools?.some((t) => !t.done)) return 'working';
-      if (agentAwaitingInput[id]) return 'attention';
       if (agentStatuses[id] === 'waiting') return 'idle';
       return 'working';
     },
-    [agentSeenActivity, agentTools, agentStatuses, agentAwaitingInput],
+    [agentSeenActivity, agentTools, agentStatuses],
   );
 
   const onStatusChange = useCallback((agentId: number, status: TerminalConnectionStatus | null) => {
