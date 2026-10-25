@@ -25,14 +25,18 @@ import {
   newCharacterId,
   pixId,
 } from '../../../core/src/characterProfiles.js';
-import type { WardrobeItem } from '../../../core/src/wardrobeItems.js';
+import { MAX_WARDROBE_ITEMS, type WardrobeItem } from '../../../core/src/wardrobeItems.js';
 import { CAST_HISTORY } from '../constants.js';
 import { History } from './history.js';
 import type { CharacterRenderer } from './renderer.js';
 
-interface Snapshot {
+/** The cast as one value: the profiles and the items they may wear move together. */
+interface Cast {
   profiles: readonly CharacterProfile[];
   items: readonly WardrobeItem[];
+}
+
+interface Snapshot extends Cast {
   current: number;
 }
 
@@ -68,7 +72,21 @@ const newSaveId = () => `${Date.now().toString(36)}-${Math.random().toString(36)
 const sameList = (a: readonly unknown[], b: readonly unknown[]) =>
   a === b || JSON.stringify(a) === JSON.stringify(b);
 
+/** What `set` may change: the casts, and the state's other fields (the derived ones aside). */
+type Patch = Partial<
+  Omit<CastState, 'profiles' | 'items' | 'draft' | 'draftItems' | 'dirty' | 'canUndo' | 'canRedo'>
+> & {
+  saved?: Cast;
+  draft?: Cast | null;
+};
+
 export class CastStore {
+  /** The saved cast: what the office wears. */
+  private saved: Cast = { profiles: [], items: [] };
+  /** The view's working copy, while one is open. */
+  private draft: Cast | null = null;
+  /** What the open draft started from (or was last saved as): undoing back to it is clean. */
+  private base: Cast | null = null;
   private state: CastState = {
     profiles: [],
     draft: null,
@@ -84,9 +102,6 @@ export class CastStore {
   private readonly history = new History<Snapshot>(CAST_HISTORY);
   /** Saves sent and not yet answered, oldest first. */
   private inFlight: string[] = [];
-  /** What the open draft started from (or was last saved as): undoing back to it is clean. */
-  private base: readonly CharacterProfile[] | null = null;
-  private baseItems: readonly WardrobeItem[] | null = null;
   private readonly deps: CastDeps;
 
   constructor(deps: CastDeps) {
@@ -100,13 +115,27 @@ export class CastStore {
 
   getState = () => this.state;
 
-  private set(patch: Partial<CastState>): void {
-    const draft = patch.draft !== undefined ? patch.draft : this.state.draft;
-    const draftItems = patch.draftItems !== undefined ? patch.draftItems : this.state.draftItems;
+  /** The casts projected onto the state's fields (`profiles`/`items`, `draft`/`draftItems`). */
+  private project(): Pick<CastState, 'profiles' | 'items' | 'draft' | 'draftItems'> {
+    return {
+      profiles: this.saved.profiles,
+      items: this.saved.items,
+      draft: this.draft?.profiles ?? null,
+      draftItems: this.draft?.items ?? null,
+    };
+  }
+
+  private set({ saved, draft, ...view }: Patch): void {
+    if (saved) this.saved = saved;
+    if (draft !== undefined) this.draft = draft;
+    const { base } = this;
     this.state = {
       ...this.state,
-      ...patch,
-      dirty: !!draft && (draft !== this.base || draftItems !== this.baseItems),
+      ...view,
+      ...this.project(),
+      dirty:
+        !!this.draft &&
+        (this.draft.profiles !== base?.profiles || this.draft.items !== base?.items),
       canUndo: this.history.canUndo,
       canRedo: this.history.canRedo,
     };
@@ -126,28 +155,24 @@ export class CastStore {
   receiveProfiles(
     profiles: CharacterProfile[] | null,
     saveId?: string,
-    items: readonly WardrobeItem[] = this.state.items,
+    items: readonly WardrobeItem[] = this.saved.items,
   ): void {
     const acked = saveId ? this.inFlight.indexOf(saveId) : -1;
     if (acked >= 0) this.inFlight.splice(0, acked + 1);
     if (!profiles || this.inFlight.length) return;
     // our own echo
-    if (sameList(profiles, this.state.profiles) && sameList(items, this.state.items)) return;
-    if (this.state.draft && this.state.dirty) {
+    if (sameList(profiles, this.saved.profiles) && sameList(items, this.saved.items)) return;
+    const saved = { profiles, items };
+    if (this.draft && this.state.dirty) {
       // unsaved changes stay: saving them overwrites this list (last writer wins)
-      this.set({ profiles, items });
+      this.set({ saved });
       return;
     }
     this.history.clear();
-    if (this.state.draft) {
-      this.base = profiles;
-      this.baseItems = items;
-    }
+    if (this.draft) this.base = saved;
     this.set({
-      profiles,
-      items,
-      draft: this.state.draft ? profiles : null,
-      draftItems: this.state.draft ? items : null,
+      saved,
+      draft: this.draft ? saved : null,
       current: Math.min(this.state.current, Math.max(0, profiles.length - 1)),
     });
   }
@@ -174,25 +199,23 @@ export class CastStore {
     this.history.endStep();
   }
 
-  /** The list being edited: the draft, opened from the saved list when there is none. */
-  private editing(): readonly CharacterProfile[] {
-    if (this.state.draft) return this.state.draft;
-    this.base = this.state.profiles;
-    this.baseItems = this.state.items;
+  /**
+   * The cast being edited: the draft, opened from the saved cast when there is none. The
+   * only place a draft opens. Opening one is silent (no listener is told): until it is
+   * changed it shows exactly the saved cast, and the change that follows notifies.
+   */
+  private openDraft(): Cast {
+    if (this.draft) return this.draft;
+    this.draft = this.saved;
+    this.base = this.saved;
     this.history.clear();
-    this.state = { ...this.state, draft: this.state.profiles, draftItems: this.state.items };
-    return this.state.profiles;
-  }
-
-  /** The items being edited (the draft's). */
-  private editingItems(): readonly WardrobeItem[] {
-    this.editing();
-    return this.state.draftItems ?? this.state.items;
+    this.state = { ...this.state, ...this.project() };
+    return this.draft;
   }
 
   select(index: number): void {
-    const list = this.editing();
-    if (index < 0 || index >= list.length) return;
+    const { profiles } = this.openDraft();
+    if (index < 0 || index >= profiles.length) return;
     this.set({ current: index });
   }
 
@@ -202,40 +225,51 @@ export class CastStore {
   }
 
   updateAt(index: number, change: (draft: CharacterProfile) => void, frame: number | null = null) {
-    const list = this.editing();
-    const draft = structuredClone(list[index]);
-    if (!draft) return;
-    change(draft);
-    const profiles = [...list];
-    profiles[index] = draft;
-    this.commit({ profiles, items: this.editingItems(), current: this.state.current }, frame);
+    this.edit(index, change, frame);
+  }
+
+  /**
+   * Change profile `index` through a copy as one undo step, with the draft's items or
+   * `items`. False when there is no such profile.
+   */
+  private edit(
+    index: number,
+    change: (draft: CharacterProfile) => void,
+    frame: number | null,
+    items?: readonly WardrobeItem[],
+  ): boolean {
+    const cast = this.openDraft();
+    const profile = structuredClone(cast.profiles[index]);
+    if (!profile) return false;
+    change(profile);
+    const profiles = [...cast.profiles];
+    profiles[index] = profile;
+    this.commit({ profiles, items: items ?? cast.items, current: this.state.current }, frame);
+    return true;
   }
 
   /**
    * Add a custom item, and change the current profile in the same undo step (to wear it).
-   * False when the wardrobe already holds MAX items.
+   * False when the wardrobe already holds `max` items (MAX_WARDROBE_ITEMS).
    */
-  addItem(item: WardrobeItem, change: (draft: CharacterProfile) => void, max: number): boolean {
-    const items = this.editingItems();
+  addItem(
+    item: WardrobeItem,
+    change: (draft: CharacterProfile) => void,
+    max = MAX_WARDROBE_ITEMS,
+  ): boolean {
+    const { items } = this.openDraft();
     if (items.length >= max) return false;
-    const list = this.editing();
-    const draft = structuredClone(list[this.state.current]);
-    if (!draft) return false;
-    change(draft);
-    const profiles = [...list];
-    profiles[this.state.current] = draft;
-    this.commit({ profiles, items: [...items, item], current: this.state.current });
-    return true;
+    return this.edit(this.state.current, change, null, [...items, item]);
   }
 
   /** Delete a custom item: every character wearing it takes it off (and loses its edits on it). */
   removeItem(id: string): void {
-    const items = this.editingItems();
-    const item = items.find((i) => i.id === id);
+    const cast = this.openDraft();
+    const item = cast.items.find((i) => i.id === id);
     if (!item) return;
     const slot = item.piece as keyof CharacterProfile;
     const editKey = pixId(item.piece, id);
-    const profiles = this.editing().map((p) => {
+    const profiles = cast.profiles.map((p) => {
       if (p[slot] !== id && !p.edits?.[editKey]) return p;
       const copy = structuredClone(p);
       if (copy[slot] === id) delete copy[slot];
@@ -244,7 +278,7 @@ export class CastStore {
     });
     this.commit({
       profiles,
-      items: items.filter((i) => i !== item),
+      items: cast.items.filter((i) => i !== item),
       current: this.state.current,
     });
   }
@@ -255,32 +289,32 @@ export class CastStore {
    * MAX_CHARACTER_PROFILES: returns how many fit (the rest are dropped).
    */
   add(added: CharacterProfile[], at?: number): number {
-    const list = this.editing();
-    at ??= list.length;
+    const cast = this.openDraft();
+    at ??= cast.profiles.length;
     const fits = added
-      .slice(0, Math.max(0, MAX_CHARACTER_PROFILES - list.length))
+      .slice(0, Math.max(0, MAX_CHARACTER_PROFILES - cast.profiles.length))
       .map((p) => ({ ...p, id: newCharacterId() }));
     if (!fits.length) return 0;
-    const profiles = [...list];
+    const profiles = [...cast.profiles];
     profiles.splice(at, 0, ...fits);
-    this.commit({ profiles, items: this.editingItems(), current: at + fits.length - 1 });
+    this.commit({ profiles, items: cast.items, current: at + fits.length - 1 });
     return fits.length;
   }
 
   remove(index: number): void {
-    const list = this.editing();
-    if (list.length < 2) return;
-    const profiles = list.filter((_, i) => i !== index);
+    const cast = this.openDraft();
+    if (cast.profiles.length < 2) return;
+    const profiles = cast.profiles.filter((_, i) => i !== index);
     this.commit({
       profiles,
-      items: this.editingItems(),
+      items: cast.items,
       current: Math.min(this.state.current, profiles.length - 1),
     });
   }
 
-  private commit(next: Snapshot, frame: number | null = null): void {
+  private commit({ current, ...cast }: Snapshot, frame: number | null = null): void {
     this.history.record(this.snapshot(), frame, this.now());
-    this.set({ draft: next.profiles, draftItems: next.items, current: next.current });
+    this.set({ draft: cast, current });
   }
 
   /** Step back; returns the editor frame the undone change was made on. */
@@ -293,19 +327,14 @@ export class CastStore {
   }
 
   private snapshot(): Snapshot {
-    return {
-      profiles: this.editing(),
-      items: this.editingItems(),
-      current: this.state.current,
-    };
+    return { ...this.openDraft(), current: this.state.current };
   }
 
   private restore(entry: { state: Snapshot; frame: number | null } | null): number | null {
     if (!entry) return null;
     const { profiles, items, current } = entry.state;
     this.set({
-      draft: profiles,
-      draftItems: items,
+      draft: { profiles, items },
       current: Math.min(current, profiles.length - 1),
     });
     return entry.frame;
@@ -313,35 +342,30 @@ export class CastStore {
 
   // ── Saving ───────────────────────────────────────────────
 
-  /** Save the draft: it becomes the list the office wears, and is sent to the server. */
+  /** Save the draft: it becomes the cast the office wears, and is sent to the server. */
   save(): void {
-    const { draft, draftItems } = this.state;
+    const { draft } = this;
     if (!draft || !this.state.dirty) return;
-    const items = draftItems ?? this.state.items;
     this.base = draft;
-    this.baseItems = items;
-    this.set({ profiles: draft, items });
+    this.set({ saved: draft });
     this.send();
   }
 
   /** Drop the draft and its history: the saved list stands. */
   discard(): void {
-    if (!this.state.draft) return;
+    if (!this.draft) return;
     this.base = null;
-    this.baseItems = null;
     this.history.clear();
-    const { profiles } = this.state;
     this.set({
       draft: null,
-      draftItems: null,
-      current: Math.min(this.state.current, Math.max(0, profiles.length - 1)),
+      current: Math.min(this.state.current, Math.max(0, this.saved.profiles.length - 1)),
     });
   }
 
   private send(): void {
     const saveId = newSaveId();
     this.inFlight.push(saveId);
-    this.deps.save([...this.state.profiles], saveId, [...this.state.items]);
+    this.deps.save([...this.saved.profiles], saveId, [...this.saved.items]);
   }
 
   private now(): number {

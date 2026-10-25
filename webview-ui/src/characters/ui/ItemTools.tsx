@@ -75,7 +75,7 @@ export function ItemTools() {
         const item = itemFrom(renderer, profile, piece, name, sheetPngBase64(data));
         if (!item) return;
         registerItemArt(item.id, data);
-        if (!castStore.addItem(item, (p) => wearNewItem(p, item), MAX_WARDROBE_ITEMS)) {
+        if (!castStore.addItem(item, (p) => wearNewItem(p, item))) {
           status(`The wardrobe holds at most ${MAX_WARDROBE_ITEMS} items of your own.`, 'err');
           return;
         }
