@@ -1,16 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { useEffect, useState } from 'react';
 
-import {
-  CONVERSATION_SIDEBAR_CLOSE_EASE,
-  CONVERSATION_SIDEBAR_CLOSE_MS,
-  CONVERSATION_SIDEBAR_CONTENT_DELAY_MS,
-  CONVERSATION_SIDEBAR_CONTENT_SHIFT_PX,
-  CONVERSATION_SIDEBAR_OPEN_EASE,
-  CONVERSATION_SIDEBAR_OPEN_MS,
-  TERMINAL_DRAWER_RESIZE_HANDLE_PX,
-} from '../constants.js';
-import { prefersReducedMotion } from '../hooks/usePresence.js';
+import { SIDE_PANEL_CONTENT_SHIFT_PX, TERMINAL_DRAWER_RESIZE_HANDLE_PX } from '../constants.js';
+import { useSlidePanel } from '../hooks/useSlidePanel.js';
 import type { TerminalConnectionStatus } from '../terminal/terminalClient.js';
 import { TerminalPaneStack } from './TerminalPaneStack.js';
 
@@ -48,63 +39,13 @@ export function TerminalDrawer({
   onResizeStart,
   onStatusChange,
 }: TerminalDrawerProps) {
-  // The conversation sidebar's motion, mirrored to the right edge: `shown`
-  // is the width target, `rendered` keeps the panes laid out (display:none
-  // once shut — never unmounted: that would drop each xterm's scrollback and
-  // force a reconnect on every toggle), `animating` says the width moves
-  // with a transition — only while opening or closing, so a drag-resize or a
-  // window resize follows the pointer instead of easing behind it.
-  const [rendered, setRendered] = useState(false);
-  const [shown, setShown] = useState(false);
-  const [animating, setAnimating] = useState(false);
-  const instant = prefersReducedMotion();
-
-  useEffect(() => {
-    if (isOpen) {
-      setRendered(true);
-      if (instant) {
-        setShown(true);
-        return;
-      }
-      setAnimating(true);
-      // One frame at width 0 first, or there is nothing to animate from.
-      let second = 0;
-      const first = requestAnimationFrame(() => {
-        second = requestAnimationFrame(() => setShown(true));
-      });
-      return () => {
-        cancelAnimationFrame(first);
-        cancelAnimationFrame(second);
-      };
-    }
-    setShown(false);
-    if (instant) {
-      setRendered(false);
-      return;
-    }
-    setAnimating(true);
-    // onTransitionEnd hides it when the slide ends; this is the backstop for
-    // a transition that never runs (a hidden tab), not the timing.
-    const timer = setTimeout(() => {
-      setRendered(false);
-      setAnimating(false);
-    }, CONVERSATION_SIDEBAR_CLOSE_MS * 2);
-    return () => clearTimeout(timer);
-  }, [isOpen, instant]);
+  // `rendered` keeps the panes laid out (display:none once shut — never
+  // unmounted: that would drop each xterm's scrollback and force a reconnect
+  // on every toggle); `shown` is the width target.
+  const { rendered, shown, panelTransition, contentTransition, onPanelTransitionEnd } =
+    useSlidePanel(isOpen);
 
   if (agentIds.length === 0) return null;
-
-  const width = !animating
-    ? 'none'
-    : shown
-      ? `width ${CONVERSATION_SIDEBAR_OPEN_MS}ms ${CONVERSATION_SIDEBAR_OPEN_EASE}`
-      : `width ${CONVERSATION_SIDEBAR_CLOSE_MS}ms ${CONVERSATION_SIDEBAR_CLOSE_EASE}`;
-  const content =
-    instant || !animating
-      ? 'none'
-      : shown
-        ? `transform ${CONVERSATION_SIDEBAR_OPEN_MS}ms ${CONVERSATION_SIDEBAR_OPEN_EASE} ${CONVERSATION_SIDEBAR_CONTENT_DELAY_MS}ms, opacity ${CONVERSATION_SIDEBAR_OPEN_MS}ms ease-out ${CONVERSATION_SIDEBAR_CONTENT_DELAY_MS}ms`
-        : `transform ${CONVERSATION_SIDEBAR_CLOSE_MS}ms ease-in, opacity ${CONVERSATION_SIDEBAR_CLOSE_MS / 2}ms ease-in`;
 
   return (
     // Opens to the right of the card bar (whose last item is the hide
@@ -115,21 +56,17 @@ export function TerminalDrawer({
     <div className={`h-full shrink-0 ${rendered ? 'flex' : 'hidden'}`}>
       <div
         className="h-full flex justify-start overflow-hidden bg-bg border-l-2 border-border"
-        style={{ width: shown ? widthPx : 0, transition: width }}
-        onTransitionEnd={(e) => {
-          if (e.target !== e.currentTarget || e.propertyName !== 'width') return;
-          setAnimating(false);
-          if (!isOpen) setRendered(false);
-        }}
+        style={{ width: shown ? widthPx : 0, transition: panelTransition }}
+        onTransitionEnd={onPanelTransitionEnd}
       >
         <div
           className="relative h-full shrink-0 flex flex-col"
           style={{
             // The clip box's 2px border is inside widthPx.
             width: widthPx - 2,
-            transform: shown ? 'none' : `translateX(${CONVERSATION_SIDEBAR_CONTENT_SHIFT_PX}px)`,
+            transform: shown ? 'none' : `translateX(${SIDE_PANEL_CONTENT_SHIFT_PX}px)`,
             opacity: shown ? 1 : 0,
-            transition: content,
+            transition: contentTransition,
           }}
         >
           {/* Drag handle over the left edge. App owns the gesture so it can

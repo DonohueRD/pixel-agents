@@ -617,17 +617,18 @@ export const KEYBOARD_MIN_HEIGHT_PX = 150;
 /** Screen pixels per icon pixel (whole number, so the icon stays crisp). */
 export const PIXEL_ICON_SCALE = 2;
 
-// ── Conversation sidebar (desktop standalone) ────────────────
+// ── Side panels docked beside the office (the terminal drawer) ──
+// Their motion: hooks/useSlidePanel.ts.
 /** Opening: the panel stretches out a touch past its width and settles back. */
-export const CONVERSATION_SIDEBAR_OPEN_MS = 340;
-export const CONVERSATION_SIDEBAR_OPEN_EASE = 'cubic-bezier(0.34, 1.35, 0.64, 1)';
+export const SIDE_PANEL_OPEN_MS = 340;
+export const SIDE_PANEL_OPEN_EASE = 'cubic-bezier(0.34, 1.35, 0.64, 1)';
 /** Its contents slide in once the panel is mostly out. */
-export const CONVERSATION_SIDEBAR_CONTENT_DELAY_MS = 90;
+export const SIDE_PANEL_CONTENT_DELAY_MS = 90;
 /** Closing is quicker and doesn't bounce: contents fade first, the panel snaps shut. */
-export const CONVERSATION_SIDEBAR_CLOSE_MS = 200;
-export const CONVERSATION_SIDEBAR_CLOSE_EASE = 'cubic-bezier(0.55, 0, 0.75, 0.2)';
+export const SIDE_PANEL_CLOSE_MS = 200;
+export const SIDE_PANEL_CLOSE_EASE = 'cubic-bezier(0.55, 0, 0.75, 0.2)';
 /** How far the contents travel as they slide in or out. */
-export const CONVERSATION_SIDEBAR_CONTENT_SHIFT_PX = 24;
+export const SIDE_PANEL_CONTENT_SHIFT_PX = 24;
 /** An agent card's height: its mug shot plus 1px padding and 2px border each
  *  side. The phone's + card (square) is sized from it, so the bar's first
  *  card lines up with the rest. */
