@@ -1,6 +1,7 @@
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState } from 'react';
 
 import { officeRadio } from '../music/musicEngine.js';
+import { useOfficeRadio } from '../music/useOfficeRadio.js';
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 import { isBrowserRuntime } from '../runtime.js';
 import { transport } from '../transport/index.js';
@@ -72,7 +73,7 @@ export function SettingsModal({
   onImportLayout,
 }: SettingsModalProps) {
   // The office radio's player is a per-browser setting the radio keeps itself.
-  const radio = useSyncExternalStore(officeRadio.subscribe, officeRadio.getState);
+  const radio = useOfficeRadio();
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [assetDirDraft, setAssetDirDraft] = useState('');

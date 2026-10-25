@@ -819,10 +819,10 @@ export const MUSIC_SKIP_FADE_SEC = 0.25;
 export const MUSIC_TONE_CUTOFF_HZ = 4000;
 /** Starting volume, 0-1. */
 export const MUSIC_DEFAULT_VOLUME = 0.45;
-/** localStorage key for the radio's volume and mood (per browser). */
 /** A new tune's name won't repeat any of this many before it (it rerolls up to MUSIC_NAME_REROLLS times). */
 export const MUSIC_RECENT_NAMES = 12;
 export const MUSIC_NAME_REROLLS = 8;
+/** localStorage key for the radio's volume and mood (per browser). */
 export const MUSIC_STORAGE_KEY = 'pixel-agents.radio';
 /** The compact player's width. */
 export const MUSIC_PLAYER_WIDTH_PX = 364;
