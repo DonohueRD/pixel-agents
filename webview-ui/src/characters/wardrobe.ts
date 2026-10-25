@@ -19,6 +19,7 @@ import {
   EYE_ROWS,
   type EyeRows,
 } from '../../../core/src/characterProfiles.js';
+import { isRecord } from '../../../core/src/isRecord.js';
 import { SHEET_H, SHEET_W } from './sheet.js';
 
 export interface PartInfo {
@@ -136,8 +137,6 @@ export function partLabel(w: Wardrobe, cat: string, id: string | undefined): str
   return w.manifest.parts[cat]?.find((p) => p.id === id)?.label ?? 'None';
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
 const isPart = (v: unknown) =>
   isRecord(v) && typeof v.id === 'string' && typeof v.label === 'string';
 const isPalette = (v: unknown) =>

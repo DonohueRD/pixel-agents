@@ -4,11 +4,13 @@
  * wear. DOM-free; the view encodes and decodes the PNGs.
  */
 
+import { CHAR_FRAME_PIXELS } from '../../../core/src/assets/constants.js';
 import {
   type CharacterPixelEdits,
   type CharacterProfile,
   pixId,
 } from '../../../core/src/characterProfiles.js';
+import { newLocalId } from '../../../core/src/localId.js';
 import {
   isItemId,
   isItemPiece,
@@ -21,8 +23,6 @@ import type { CharacterRenderer } from './renderer.js';
 import { cellAt, FRAME_COUNT, isOpaque } from './sheet.js';
 import { editKey, layerOf, shownArt } from './slots.js';
 import type { PartInfo } from './wardrobe.js';
-
-const FRAME_PIXELS = 16 * 32;
 
 /** A piece's sheet as this profile wears it, uncoloured (art plus edits); null when not worn. */
 export function pieceSheet(
@@ -44,7 +44,7 @@ export function editsFromSheet(
 ): CharacterPixelEdits {
   const cells: CharacterPixelEdits['cells'] = {};
   for (let f = 0; f < FRAME_COUNT; f++) {
-    for (let i = 0; i < FRAME_PIXELS; i++) {
+    for (let i = 0; i < CHAR_FRAME_PIXELS; i++) {
       const o = cellAt(f, i);
       const want = isOpaque(sheet[o + 3]) ? rgbHex(sheet[o], sheet[o + 1], sheet[o + 2]) : null;
       const has = base && isOpaque(base[o + 3]) ? rgbHex(base[o], base[o + 1], base[o + 2]) : null;
@@ -79,9 +79,8 @@ export function basePartOf(r: CharacterRenderer, piece: ItemPiece, id: string): 
   return r.wardrobe.manifest.parts[piece]?.find((part) => part.id === id)?.base ?? id;
 }
 
-/** A fresh item id. Not crypto.randomUUID(): undefined on plain-http LAN origins. */
-export const newItemId = (): string =>
-  `custom_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+/** A fresh item id. */
+export const newItemId = (): string => newLocalId('custom_', 6);
 
 /**
  * The item made from a profile's worn piece: its art and edits baked into one sheet (the

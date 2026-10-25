@@ -25,6 +25,7 @@ import {
   newCharacterId,
   pixId,
 } from '../../../core/src/characterProfiles.js';
+import { newLocalId } from '../../../core/src/localId.js';
 import { MAX_WARDROBE_ITEMS, type WardrobeItem } from '../../../core/src/wardrobeItems.js';
 import { CAST_HISTORY } from '../constants.js';
 import { History } from './history.js';
@@ -66,8 +67,8 @@ export interface CastDeps {
   now?: () => number;
 }
 
-/** A save's id. Not crypto.randomUUID(): undefined on plain-http LAN origins (no secure context). */
-const newSaveId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+/** A save's id. */
+const newSaveId = () => newLocalId('', undefined, '-');
 
 const sameList = (a: readonly unknown[], b: readonly unknown[]) =>
   a === b || JSON.stringify(a) === JSON.stringify(b);

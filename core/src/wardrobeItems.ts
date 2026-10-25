@@ -8,28 +8,18 @@
  * before the seated frame, 112x96, gets it derived).
  */
 
+import { CHARACTER_SLOTS, type CharacterSlot } from './characterProfiles.js';
+import { isRecord } from './isRecord.js';
 import type { WardrobeItem } from './messages.js';
 
 export type { WardrobeItem };
 
 /** The slots an item can be worn in: every one that holds a part besides the body and its underwear. */
-export const ITEM_PIECES = [
-  'hair',
-  'beard',
-  'top',
-  'jacket',
-  'pants',
-  'shoes',
-  'full',
-  'hat',
-  'necklace',
-  'lanyard',
-  'earrings',
-  'shades',
-  'hairshades',
-  'watch',
-] as const;
-export type ItemPiece = (typeof ITEM_PIECES)[number];
+export type ItemPiece = Exclude<CharacterSlot, 'body' | 'utop' | 'under'>;
+const NOT_ITEM_PIECES: readonly CharacterSlot[] = ['body', 'utop', 'under'];
+export const ITEM_PIECES: readonly ItemPiece[] = CHARACTER_SLOTS.filter(
+  (slot): slot is ItemPiece => !NOT_ITEM_PIECES.includes(slot),
+);
 
 /** Upper bound on the saved items, so a hostile payload can't grow the file without limit. */
 export const MAX_WARDROBE_ITEMS = 200;
@@ -48,8 +38,8 @@ export const isItemPiece = (piece: string): piece is ItemPiece =>
 export const isItemId = (id: string | undefined): boolean => !!id && ITEM_ID_RE.test(id);
 
 function isWardrobeItem(value: unknown): value is WardrobeItem {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const v = value as Record<string, unknown>;
+  if (!isRecord(value)) return false;
+  const v = value;
   const allowed = new Set(['id', 'piece', 'label', 'base', 'png']);
   if (Object.keys(v).some((k) => !allowed.has(k))) return false;
   return (

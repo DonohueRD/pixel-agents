@@ -11,6 +11,8 @@
 
 import { CHAR_FRAME_PIXELS, CHAR_SHEET_FRAMES } from './assets/constants.js';
 import { widenLegacyCells } from './assets/seatedFrame.js';
+import { isRecord } from './isRecord.js';
+import { newLocalId } from './localId.js';
 import type {
   CharacterColor,
   CharacterPixelEdits,
@@ -94,15 +96,10 @@ export function parsePixId(key: string): [set: string, id: string] {
 const EDIT_COLOR_RE = /^#[0-9a-f]{6}$/i;
 const CHARACTER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** A fresh character id. Not crypto.randomUUID(): undefined on plain-http LAN origins. */
-export const newCharacterId = (): string =>
-  `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+/** A fresh character id. */
+export const newCharacterId = (): string => newLocalId('c', 6);
 /** Every profile field that holds a string besides the body (name, eye shape, part ids). */
 const STRING_FIELDS = ['name', 'eyeShape', ...CHARACTER_SLOTS.filter((s) => s !== 'body')];
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
@@ -114,7 +111,7 @@ function isIndexKey(key: string, max: number): boolean {
 }
 
 function isCharacterColor(value: unknown): value is CharacterColor {
-  if (!isPlainObject(value)) return false;
+  if (!isRecord(value)) return false;
   if (!['h', 's', 'b', 'c'].every((k) => isFiniteNumber(value[k]))) return false;
   if (value.colorize !== undefined && typeof value.colorize !== 'boolean') return false;
   return value.palette === undefined || typeof value.palette === 'string';
@@ -122,12 +119,12 @@ function isCharacterColor(value: unknown): value is CharacterColor {
 
 /** cells[frame][pixel] '#rrggbb' or null, both keys in the sheet's range (an old format's rev, if any, finite). */
 function isCharacterPixelEdits(value: unknown): value is CharacterPixelEdits {
-  if (!isPlainObject(value) || !isPlainObject(value.cells)) return false;
+  if (!isRecord(value) || !isRecord(value.cells)) return false;
   if (value.rev !== undefined && !isFiniteNumber(value.rev)) return false;
   return Object.entries(value.cells).every(
     ([frame, pixels]) =>
       isIndexKey(frame, CHAR_SHEET_FRAMES) &&
-      isPlainObject(pixels) &&
+      isRecord(pixels) &&
       Object.entries(pixels).every(
         ([pixel, color]) =>
           isIndexKey(pixel, CHAR_FRAME_PIXELS) &&
@@ -137,7 +134,7 @@ function isCharacterPixelEdits(value: unknown): value is CharacterPixelEdits {
 }
 
 function isMapOf(value: unknown, isEntry: (entry: unknown) => boolean): boolean {
-  return isPlainObject(value) && Object.values(value).every(isEntry);
+  return isRecord(value) && Object.values(value).every(isEntry);
 }
 
 /**
@@ -147,7 +144,7 @@ function isMapOf(value: unknown, isEntry: (entry: unknown) => boolean): boolean 
  * still reach migrateCharacterProfile.
  */
 export function isCharacterProfile(value: unknown): value is CharacterProfile {
-  if (!isPlainObject(value) || typeof value.body !== 'string') return false;
+  if (!isRecord(value) || typeof value.body !== 'string') return false;
   if (value.id !== undefined && !(typeof value.id === 'string' && CHARACTER_ID_RE.test(value.id)))
     return false;
   for (const key of STRING_FIELDS) {
