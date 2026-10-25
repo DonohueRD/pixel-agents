@@ -1,4 +1,4 @@
-import { SEATED_FRAME } from '../../../../core/src/assets/seatedFrame.js';
+import { SEATED_FRAME, SHEET_FRAMES } from '../../../../core/src/assets/seatedFrame.js';
 import { DEFAULT_CHARACTER_PROFILES } from '../../../../core/src/defaultCharacterProfiles.js';
 import type { Direction, SpriteData } from '../types.js';
 import { Direction as Dir } from '../types.js';
@@ -147,24 +147,32 @@ export function getCharacterSprites(
     const rt = char.right;
     const flip = flipSpriteHorizontal;
 
+    // A row's sprites at an animation's frames, one sprite per frame (same length).
+    type Frames<F extends readonly number[]> = { -readonly [K in keyof F]: SpriteData };
+    const at = <F extends readonly number[]>(row: SpriteData[], frames: F) =>
+      frames.map((i) => row[i]) as Frames<F>;
+    const flipped = <F extends readonly number[]>(frames: F) =>
+      frames.map((i) => flip(rt[i])) as Frames<F>;
+    const { walk, type, read } = SHEET_FRAMES;
+
     sprites = {
       walk: {
-        [Dir.DOWN]: [d[0], d[1], d[2], d[1]],
-        [Dir.UP]: [u[0], u[1], u[2], u[1]],
-        [Dir.RIGHT]: [rt[0], rt[1], rt[2], rt[1]],
-        [Dir.LEFT]: [flip(rt[0]), flip(rt[1]), flip(rt[2]), flip(rt[1])],
+        [Dir.DOWN]: at(d, walk),
+        [Dir.UP]: at(u, walk),
+        [Dir.RIGHT]: at(rt, walk),
+        [Dir.LEFT]: flipped(walk),
       },
       typing: {
-        [Dir.DOWN]: [d[3], d[4]],
-        [Dir.UP]: [u[3], u[4]],
-        [Dir.RIGHT]: [rt[3], rt[4]],
-        [Dir.LEFT]: [flip(rt[3]), flip(rt[4])],
+        [Dir.DOWN]: at(d, type),
+        [Dir.UP]: at(u, type),
+        [Dir.RIGHT]: at(rt, type),
+        [Dir.LEFT]: flipped(type),
       },
       reading: {
-        [Dir.DOWN]: [d[5], d[6]],
-        [Dir.UP]: [u[5], u[6]],
-        [Dir.RIGHT]: [rt[5], rt[6]],
-        [Dir.LEFT]: [flip(rt[5]), flip(rt[6])],
+        [Dir.DOWN]: at(d, read),
+        [Dir.UP]: at(u, read),
+        [Dir.RIGHT]: at(rt, read),
+        [Dir.LEFT]: flipped(read),
       },
       seated: {
         [Dir.DOWN]: d[SEATED_FRAME],

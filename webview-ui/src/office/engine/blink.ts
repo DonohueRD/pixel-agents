@@ -13,13 +13,7 @@ import {
   BLINK_GAP_MIN_SEC,
   BLINK_SHUT_SEC,
 } from '../../constants.js';
-
-export interface Blinker {
-  /** Seconds until the eyes next shut. */
-  blinkIn: number;
-  /** Seconds the eyes stay shut (0 = open). */
-  blinkShut: number;
-}
+import type { Blinker } from '../types.js';
 
 type Rand = () => number;
 

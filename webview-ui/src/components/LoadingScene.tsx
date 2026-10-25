@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
 import { CHAR_FRAME_W } from '../../../core/src/assets/constants.js';
+import { SHEET_FRAMES } from '../../../core/src/assets/seatedFrame.js';
 import { DEFAULT_CHARACTER_PROFILES } from '../../../core/src/defaultCharacterProfiles.js';
 import { useCast } from '../characters/castStore.js';
 import { SpriteCanvas } from '../characters/ui/SpriteCanvas.js';
@@ -15,10 +16,8 @@ import {
 import { useDevicePixelRatio } from '../hooks/useDevicePixelRatio.js';
 import { prefersReducedMotion } from '../hooks/usePresence.js';
 
-/** Sheet frames: the walk cycle, typing, reading (characters/sheet.ts order). */
-const WALK = [0, 1, 2, 1];
-const TYPE = [3, 4];
-const READ = [5, 6];
+/** Sheet frames: the walk cycle, typing, reading. */
+const { walk: WALK, type: TYPE, read: READ } = SHEET_FRAMES;
 
 /** A step counter ticking every `ms` (frozen when motion is reduced). */
 function useTick(ms: number, still: boolean): number {
