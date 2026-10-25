@@ -366,6 +366,11 @@ export const TERMINAL_DRAWER_MAX_WIDTH_RATIO = 0.8;
 export const TERMINAL_SIDEBAR_WIDTH_PX = 72;
 /** Grab width of the drag handle on the panel's left edge. */
 export const TERMINAL_DRAWER_RESIZE_HANDLE_PX = 6;
+/** How long a launch (or resume) this client sent waits for its terminal:
+ *  the next terminal to open within this answers it and comes in focused.
+ *  A spawn that fails never opens one, and no message says so, so the wait
+ *  ends here rather than claiming the next terminal some other device opens. */
+export const LAUNCH_ANSWER_TIMEOUT_MS = 10_000;
 /** The hide ribbon below the cards: its width at rest, as a share of a
  *  card's (hovered, it reaches the cards' left edge). */
 export const TERMINAL_HIDE_RIBBON_REST_RATIO = 0.75;

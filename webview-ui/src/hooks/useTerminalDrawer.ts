@@ -11,6 +11,7 @@ import {
 import type { OfficeState } from '../office/engine/officeState.js';
 import type { ToolActivity } from '../office/types.js';
 import type { TerminalConnectionStatus } from '../terminal/terminalClient.js';
+import { answersLaunch } from './launchLatch.js';
 
 /** A character not (yet) in the office — the mug shot falls back to palette 0. */
 const DEFAULT_APPEARANCE: AgentAppearance = { palette: 0, hueShift: 0 };
@@ -41,8 +42,9 @@ export interface TerminalDrawerController {
    *  armed it): the one "this terminal opened because we launched it" fact.
    *  A reload re-announcing live sessions never sets it. */
   lastLaunched: { agentId: number; seq: number } | null;
-  /** A launch was just sent: the next terminal to open answers it. Every
-   *  open disarms it, whether or not it was armed. */
+  /** A launch (or resume) was just sent: the next terminal to open within
+   *  LAUNCH_ANSWER_TIMEOUT_MS answers it. Every open disarms it, whether or
+   *  not it was armed, and so does the timeout (a failed spawn opens none). */
   expectLaunch: () => void;
   /** Show an agent's terminal if it has one; no-op otherwise. The office's
    *  character click routes here: standalone has no editor panel to raise, so
@@ -91,9 +93,10 @@ export function useTerminalDrawer({
   const [activeAgentId, setActiveAgentId] = useState<number | null>(null);
   const [lastOpened, setLastOpened] = useState<{ agentId: number; seq: number } | null>(null);
   const [lastLaunched, setLastLaunched] = useState<{ agentId: number; seq: number } | null>(null);
-  const launchExpectedRef = useRef(false);
+  // When the pending launch was sent (null = none): it expires, see answersLaunch.
+  const launchArmedAtRef = useRef<number | null>(null);
   const expectLaunch = useCallback(() => {
-    launchExpectedRef.current = true;
+    launchArmedAtRef.current = Date.now();
   }, []);
   const [isOpen, setIsOpen] = useState(false);
   // The width the user asked for; what renders is that clamped to the
@@ -128,10 +131,10 @@ export function useTerminalDrawer({
     setActiveAgentId(newest);
     setIsOpen(true);
     setLastOpened((prev) => ({ agentId: newest, seq: (prev?.seq ?? 0) + 1 }));
-    if (launchExpectedRef.current) {
+    if (answersLaunch(launchArmedAtRef.current, Date.now())) {
       setLastLaunched((prev) => ({ agentId: newest, seq: (prev?.seq ?? 0) + 1 }));
     }
-    launchExpectedRef.current = false;
+    launchArmedAtRef.current = null;
   }, [terminalAgentIds]);
 
   const reveal = useCallback(
