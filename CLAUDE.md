@@ -157,7 +157,7 @@ webview-ui/                          React 19 + Canvas UI (depends only on core/
       useSlidePanel.ts               A side panel's open/close motion (bounce out, snap shut, reduced motion; SIDE_PANEL_* timings)
       slideTransitions.ts            Its two transitions (pure): the width only while opening/closing, the contents' delayed slide whenever motion is allowed (it outlasts the width)
       useLongPress.ts                Touch long-press (held still) that swallows the click it ends with
-      useRosterLaunch.ts             The launch button's two menus (drawer | roster, never both) + the roster pick, shared by the phone bar and the desktop toolbar; per-shell options: + keeps the pick (desktop) or drops it (phone), Escape closes the drawer (desktop only)
+      useRosterLaunch.ts             The launch button's two menus (drawer | roster, never both) + the roster pick, shared by the phone bar and the desktop toolbar (state: pure `launchMenus.ts`); + always opens the plain drawer, dropping a pick; per-shell option: Escape closes the drawer (desktop only)
       useHoverPin.ts                 Desktop hover-opens / press-pins menu (the toolbar's drawer and roster)
       useIsMobile.ts                 Mobile breakpoint — always false in the VS Code webview
       useKeyboardViewport.ts         Samples the viewport: keyboard open (key bar) + iOS shell clamp height

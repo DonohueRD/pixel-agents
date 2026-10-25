@@ -74,7 +74,6 @@ export function MobileAgentBar({
   const menus = useRosterLaunch({
     canLaunch,
     onOpenCharacters,
-    launchButtonKeepsPick: false,
     escapeClosesDrawer: false,
   });
   const { closeDrawer } = menus;

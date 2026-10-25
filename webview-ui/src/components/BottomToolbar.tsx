@@ -66,14 +66,12 @@ export function BottomToolbar({
   const menus = useRosterLaunch({
     canLaunch,
     onOpenCharacters,
-    // A + press over a drawer the roster opened pins it, still for the pick.
-    launchButtonKeepsPick: true,
     escapeClosesDrawer: true,
   });
   const { isDrawerOpen, closeDrawer } = menus;
 
-  // A plain press never launches: it opens the drawer, and the launch happens
-  // from a Directory row. Hovering opens it too, and leaving shuts it again;
+  // A plain press never launches: it opens the plain drawer (dropping any
+  // roster pick, as on the phone), and the launch happens from a Directory row. Hovering opens it too, and leaving shuts it again;
   // a press pins it open until a press elsewhere, Escape, or a second press
   // on the +. A drawer the roster opened is a question waiting for an answer
   // (where to launch the picked character): the pointer wandering off doesn't
