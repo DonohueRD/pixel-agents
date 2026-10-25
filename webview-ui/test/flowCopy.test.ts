@@ -122,4 +122,35 @@ describe('terminalCopyText: verbatim unless asked to re-flow', () => {
     expect(terminalCopyText(code, 'text', COLS, 0)).toBe(flowTerminalCopy(code, COLS, 0));
     expect(terminalCopyText('ab\n  cd', 'text', COLS, WRAP)).toBe('ab cd');
   });
+
+  // Claude Code breaks a token longer than its row (a URL, a path) mid-word
+  // and carries on after its block's indent: that break has a signature, so
+  // EVERY copy — verbatim too — joins it back, with no space and no indent.
+  const url = 'https://github.com/pixel-agents-hq/pixel-agents/pull/412/files#diff';
+  const first = `⎿  see ${url.slice(0, COLS - 7)}`;
+  const rest = url.slice(COLS - 7);
+  const brokenUrl = `${first}\n     ${rest}\n  done`;
+
+  it('joins a URL Claude Code broke across rows, even verbatim', () => {
+    expect(first.length).toBe(COLS);
+    expect(terminalCopyText(brokenUrl, 'verbatim', COLS)).toBe(`⎿  see ${url}\n  done`);
+    expect(terminalCopyText(brokenUrl, 'text', COLS)).toBe(`⎿  see ${url}\n  done`);
+    // Windows-style selections keep their own line breaks.
+    expect(terminalCopyText(brokenUrl.replaceAll('\n', '\r\n'), 'verbatim', COLS)).toBe(
+      `⎿  see ${url}\r\n  done`,
+    );
+  });
+
+  it('a mid-row selection of it joins too', () => {
+    const fromUrl = `${first.slice(7)}\n     ${rest}`;
+    expect(terminalCopyText(fromUrl, 'verbatim', COLS, 7)).toBe(url);
+  });
+
+  it('a full row ending in a word that fit keeps its newline', () => {
+    // Ends at the last column, but "next" would have fit on a fresh row: an
+    // ordinary wrap or an intended break, not a broken token.
+    const row = 'x'.repeat(COLS - 5) + ' word';
+    expect(row.length).toBe(COLS);
+    expect(terminalCopyText(`${row}\n  next`, 'verbatim', COLS)).toBe(`${row}\n  next`);
+  });
 });
