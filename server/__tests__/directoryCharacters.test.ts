@@ -6,7 +6,12 @@ import {
   parseDirectoryCharacters,
   pickDirectoryCharacter,
 } from '../../core/src/directoryCharacters.js';
-import { chooseLook, pickRandomPalette, repeatFor } from '../../core/src/paletteUtils.js';
+import {
+  chooseLook,
+  pickRandomPalette,
+  repeatFor,
+  rosterPick,
+} from '../../core/src/paletteUtils.js';
 
 describe('parseDirectoryCharacters', () => {
   it('keeps non-negative integers in order, first occurrence wins', () => {
@@ -115,6 +120,19 @@ describe('repeatFor', () => {
       { palette: 2, repeat: 1 },
     ];
     expect(repeatFor(1, worn)).toBe(1);
+  });
+});
+
+describe('rosterPick', () => {
+  it('takes an integer naming a character in the cast', () => {
+    expect(rosterPick(0, 3)).toBe(0);
+    expect(rosterPick(2, 3)).toBe(2);
+  });
+
+  it('drops anything else off the wire', () => {
+    for (const raw of [undefined, null, '1', 1.5, -1, 3, Number.NaN, Infinity]) {
+      expect(rosterPick(raw, 3)).toBeUndefined();
+    }
   });
 });
 

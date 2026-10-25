@@ -1,4 +1,5 @@
 import { MAX_CHARACTER_PROFILES } from '../../core/src/characterProfiles.js';
+import { rosterPick } from '../../core/src/paletteUtils.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import { getPaletteCount } from './paletteAssigner.js';
 
@@ -24,10 +25,10 @@ export function recentCharactersMessage() {
 export function recordCharacterUse(
   palette: unknown,
 ): ReturnType<typeof recentCharactersMessage> | null {
-  if (typeof palette !== 'number' || !Number.isInteger(palette)) return null;
-  if (palette < 0 || palette >= getPaletteCount()) return null;
+  const picked = rosterPick(palette, getPaletteCount());
+  if (picked === undefined) return null;
   const cfg = readConfig();
-  cfg.recentCharacters = markUsed(cfg.recentCharacters, palette).slice(0, MAX_CHARACTER_PROFILES);
+  cfg.recentCharacters = markUsed(cfg.recentCharacters, picked).slice(0, MAX_CHARACTER_PROFILES);
   writeConfig(cfg);
   return recentCharactersMessage();
 }

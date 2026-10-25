@@ -1,4 +1,5 @@
 import type { StateAdapter } from '../../core/src/adapter.js';
+import { rosterPick } from '../../core/src/paletteUtils.js';
 import type { HookProvider } from '../../core/src/provider.js';
 import { resendAgentActivity } from './agentActivityResend.js';
 import { buildAgentDiagnostics } from './agentDiagnostics.js';
@@ -122,6 +123,14 @@ function shownHostDirectoriesFor(ctx: ClientMessageContext): HostDirectoryEntry[
     : [];
 }
 
+/** The drawer's Directories as this client is sent them (shown host entries + the user's). */
+function directoriesMessage(ctx: ClientMessageContext) {
+  return {
+    type: 'directoriesLoaded',
+    directories: listDirectories(shownHostDirectoriesFor(ctx)),
+  } as const;
+}
+
 /**
  * Handle incoming ClientMessage from a WebSocket client.
  *
@@ -159,16 +168,17 @@ export function handleClientMessage(
       // field: the client sends only where to launch. Every launch comes from a
       // drawer row and carries its Directory's path; no directoryPath falls
       // back to the server cwd (launchStandaloneAgent's own default).
+      const picked = rosterPick(msg.palette, getPaletteCount());
       launchStandaloneAgent(
         { store, runtime, ptyManager: ctx.ptyManager, provider: claudeProvider },
         {
           directoryPath: msg.directoryPath as string | undefined,
           bypassPermissions: adapter?.getSetting(KEY_BYPASS_PERMISSIONS, false) ?? false,
-          palette: typeof msg.palette === 'number' ? msg.palette : undefined,
+          palette: picked,
         },
       );
       // A roster pick moves to the front of every office's roster.
-      const recent = recordCharacterUse(msg.palette);
+      const recent = recordCharacterUse(picked);
       if (recent) store.broadcast(recent);
       break;
     }
@@ -211,10 +221,7 @@ export function handleClientMessage(
         reply: send,
         store,
         sharedRefsChanged: () => {
-          store.broadcast({
-            type: 'directoriesLoaded',
-            directories: listDirectories(shownHostDirectoriesFor(ctx)),
-          });
+          store.broadcast(directoriesMessage(ctx));
           store.broadcast(recentCharactersMessage());
         },
       });
@@ -389,10 +396,7 @@ export function handleClientMessage(
       adapter.setSetting(KEY_SHOW_HOST_DIRECTORIES, msg.enabled);
       // The list is what changed, so every office gets it again -- the same
       // signal a Directory mutation sends.
-      store.broadcast({
-        type: 'directoriesLoaded',
-        directories: listDirectories(shownHostDirectoriesFor(ctx)),
-      });
+      store.broadcast(directoriesMessage(ctx));
       break;
     }
 
@@ -631,10 +635,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // terminalAvailability is: no ptyManager means VS Code embedded mode, whose
   // adapter contributes its own Directories.
   if (ctx.ptyManager) {
-    send({
-      type: 'directoriesLoaded',
-      directories: listDirectories(shownHostDirectoriesFor(ctx)),
-    });
+    send(directoriesMessage(ctx));
   }
 
   // Sync runtime refs with the persisted settings so scanners behave correctly

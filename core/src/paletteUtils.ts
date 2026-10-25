@@ -77,10 +77,11 @@ export interface LookRequest {
   random?: () => number;
 }
 
-/** A roster pick, when it names a character in the cast. */
-function validPick(picked: number | undefined, paletteCount: number): number | undefined {
-  if (picked === undefined || !Number.isInteger(picked)) return undefined;
-  return picked >= 0 && picked < paletteCount ? picked : undefined;
+/** A roster pick as it arrives (`launchAgent.palette`, any value), when it
+ *  names a character in the cast: an integer in [0, paletteCount). */
+export function rosterPick(raw: unknown, paletteCount: number): number | undefined {
+  if (typeof raw !== 'number' || !Number.isInteger(raw)) return undefined;
+  return raw >= 0 && raw < paletteCount ? raw : undefined;
 }
 
 /**
@@ -93,7 +94,7 @@ export function chooseLook(request: LookRequest): Look {
   const wornPalettes = new Set<number>();
   for (const look of worn) if (look.palette !== undefined) wornPalettes.add(look.palette);
   const palette =
-    validPick(request.picked, paletteCount) ??
+    rosterPick(request.picked, paletteCount) ??
     pickDirectoryCharacter(
       directory?.characters ?? [],
       directory?.characterOrder ?? 'priority',

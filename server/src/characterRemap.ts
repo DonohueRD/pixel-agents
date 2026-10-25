@@ -85,14 +85,24 @@ function remapList(list: readonly number[], remap: PaletteRemap): number[] {
  */
 export function remapSharedCharacterRefs(remap: PaletteRemap): boolean {
   const cfg = readConfig();
-  const before = JSON.stringify([cfg.directories, cfg.recentCharacters]);
-  cfg.directories = cfg.directories.map((d) =>
-    d.characters
-      ? withDirectoryCharacters(d, { ...d, characters: remapList(d.characters, remap) })
-      : d,
-  );
-  cfg.recentCharacters = remapList(cfg.recentCharacters, remap);
-  if (JSON.stringify([cfg.directories, cfg.recentCharacters]) === before) return false;
+  // readConfig hands back canonical entries, so an entry changes exactly when
+  // its list does (withDirectoryCharacters then drops an emptied list's order).
+  let changed = false;
+  cfg.directories = cfg.directories.map((d) => {
+    if (!d.characters) return d;
+    const characters = remapList(d.characters, remap);
+    if (sameList(characters, d.characters)) return d;
+    changed = true;
+    return withDirectoryCharacters(d, { ...d, characters });
+  });
+  const recent = remapList(cfg.recentCharacters, remap);
+  if (!sameList(recent, cfg.recentCharacters)) changed = true;
+  cfg.recentCharacters = recent;
+  if (!changed) return false;
   writeConfig(cfg);
   return true;
+}
+
+function sameList(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
