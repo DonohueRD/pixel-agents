@@ -161,14 +161,10 @@ export function reattachTerminalAgents(deps: LaunchStandaloneAgentDeps): number[
       continue;
     }
 
-    // The restore is built from the saved record (its finished-spawn check
-    // reads the saved transcript path); only where the transcript lives is
-    // taken from the relocated one.
-    const { jsonlFile, projectDir } = relocatedRecord(deps.provider, record);
+    // Restored from where the transcript really is: the finished-spawn check
+    // must read the same file the agent will watch.
     const agent = createAgentState({
-      ...restoredAgentInit(record),
-      jsonlFile,
-      projectDir,
+      ...restoredAgentInit(relocatedRecord(deps.provider, record)),
       isExternal: false,
       providerId: deps.provider.id,
     });
