@@ -1,7 +1,7 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useRef } from 'react';
 
-import { DRAWER_EDIT_LONG_PRESS_MAX_MOVE_PX, DRAWER_EDIT_LONG_PRESS_MS } from '../constants.js';
+import { EDIT_LONG_PRESS_MAX_MOVE_PX, EDIT_LONG_PRESS_MS } from '../constants.js';
 
 export interface LongPress {
   /** Spread onto the pressed element. */
@@ -18,7 +18,7 @@ export interface LongPress {
 }
 
 /**
- * A touch long-press: `onLongPress` fires after DRAWER_EDIT_LONG_PRESS_MS with
+ * A touch long-press: `onLongPress` fires after EDIT_LONG_PRESS_MS with
  * the finger held still. Touch only — a mouse has hover, so it gets a visible
  * affordance instead. `enabled` false turns the press off.
  */
@@ -49,12 +49,12 @@ export function useLongPress(onLongPress: () => void, enabled = true): LongPress
           timer.current = undefined;
           fired.current = true;
           callback.current();
-        }, DRAWER_EDIT_LONG_PRESS_MS);
+        }, EDIT_LONG_PRESS_MS);
       },
       onPointerMove: (e) => {
         if (origin.current === null) return;
         const moved = Math.hypot(e.clientX - origin.current.x, e.clientY - origin.current.y);
-        if (moved > DRAWER_EDIT_LONG_PRESS_MAX_MOVE_PX) cancel();
+        if (moved > EDIT_LONG_PRESS_MAX_MOVE_PX) cancel();
       },
       onPointerUp: cancel,
       onPointerCancel: cancel,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import type { DirectoryCharacterOrder } from '../../../core/src/messages.js';
 import { useCast } from '../characters/castStore.js';
 import { characterLabel } from '../characters/profiles.js';
 import { getLoadedCharacterCount } from '../office/sprites/spriteData.js';
@@ -7,16 +8,14 @@ import { CharacterMugShot } from './CharacterMugShot.js';
 import { PixelIcon } from './ui/PixelIcon.js';
 import { useCardReorder } from './useCardReorder.js';
 
-export type CharacterOrder = 'priority' | 'random';
-
 interface DirectoryCharactersFieldProps {
   /** Default characters (palette indices), highest priority first. */
   characters: number[];
-  order: CharacterOrder;
-  onChange: (characters: number[], order: CharacterOrder) => void;
+  order: DirectoryCharacterOrder;
+  onChange: (characters: number[], order: DirectoryCharacterOrder) => void;
 }
 
-const ORDER_HINT: Record<CharacterOrder, string> = {
+const ORDER_HINT: Record<DirectoryCharacterOrder, string> = {
   priority:
     'Agents launched here wear the first one not in the office; once all are, someone no one is wearing.',
   random:

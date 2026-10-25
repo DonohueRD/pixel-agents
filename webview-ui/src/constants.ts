@@ -565,11 +565,12 @@ export const XTERM_HELPER_TEXTAREA_CLASS = 'xterm-helper-textarea';
 // ── Agent card bars (AgentCardList) ──────────────────────────
 /** Holding a card motionless this long arms touch drag-to-reorder. */
 export const CARD_REORDER_LONG_PRESS_MS = 400;
-/** Holding a drawer's Directory row this long opens its edit modal — the touch
- *  stand-in for the pencil, which only exists where rows can be hovered. */
-export const DRAWER_EDIT_LONG_PRESS_MS = 500;
+/** Holding a drawer's Directory row (or a roster card) this long opens its
+ *  editor (useLongPress) — the touch stand-in for the pencil, which only exists
+ *  where rows can be hovered. */
+export const EDIT_LONG_PRESS_MS = 500;
 /** Finger slop for that hold: moving beyond this is a scroll, not a press. */
-export const DRAWER_EDIT_LONG_PRESS_MAX_MOVE_PX = 10;
+export const EDIT_LONG_PRESS_MAX_MOVE_PX = 10;
 
 /** CSS pixels per sprite pixel on the phone roster's character cards. */
 export const CHARACTER_PICKER_SPRITE_SCALE = 2;

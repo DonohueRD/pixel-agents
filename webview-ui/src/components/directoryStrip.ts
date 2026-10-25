@@ -4,6 +4,7 @@
  * silhouette for the rest. Pure, so the Node runner tests it.
  */
 
+import type { DirectoryCharacterOrder } from '../../../core/src/messages.js';
 import { DIRECTORY_STRIP_MAX } from '../constants.js';
 
 export interface DirectoryStrip {
@@ -22,7 +23,7 @@ export interface DirectoryStrip {
  */
 export function directoryStrip(
   characters: readonly number[] | undefined,
-  order: 'priority' | 'random' | undefined,
+  order: DirectoryCharacterOrder | undefined,
   paletteCount: number,
   random: () => number = Math.random,
 ): DirectoryStrip {

@@ -1,8 +1,8 @@
 import type { KeyboardEvent } from 'react';
 import { useEffect, useState } from 'react';
 
+import type { DirectoryCharacterOrder } from '../../../core/src/messages.js';
 import type { Directory } from '../hooks/useExtensionMessages.js';
-import type { CharacterOrder } from './DirectoryCharactersField.js';
 import { DirectoryCharactersField } from './DirectoryCharactersField.js';
 import { Button } from './ui/Button.js';
 import { Modal } from './ui/Modal.js';
@@ -14,7 +14,7 @@ export interface DirectoryModalValues {
   areas: string[];
   /** Default characters for its launches, highest priority first. */
   characters: number[];
-  characterOrder: CharacterOrder;
+  characterOrder: DirectoryCharacterOrder;
 }
 
 interface DirectoryModalProps {
@@ -65,7 +65,7 @@ export function DirectoryModal({
   const [path, setPath] = useState('');
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [characters, setCharacters] = useState<number[]>([]);
-  const [characterOrder, setCharacterOrder] = useState<CharacterOrder>('priority');
+  const [characterOrder, setCharacterOrder] = useState<DirectoryCharacterOrder>('priority');
 
   // Refill from whatever the modal was opened on. Keyed on isOpen too, so
   // re-opening Add after a cancelled edit starts blank rather than stale.
