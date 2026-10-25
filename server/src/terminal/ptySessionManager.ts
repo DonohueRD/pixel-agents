@@ -19,33 +19,39 @@ import {
   TERMINAL_DEFAULT_ROWS,
   TERMINAL_KILL_GRACE_MS,
   TERMINAL_MIRROR_SCROLLBACK_LINES,
+  TERMINAL_MOUSE_ENCODING_MODES,
   TERMINAL_SHUTDOWN_SLACK_MS,
   TERMINAL_TERM_NAME,
 } from '../constants.js';
 import type { IPty, PtyModule } from './ptyModule.js';
 import { resolvePtyModule } from './ptyModule.js';
+import type {
+  CreateTerminalOptions,
+  TerminalExit,
+  TerminalReplay,
+  TerminalSession,
+  TerminalSessions,
+} from './terminalSessions.js';
 
-export interface CreatePtySessionOptions {
-  agentId: number;
-  command: string;
-  args: string[];
-  cwd: string;
-  /** Extra env layered over the server's own process.env. */
-  env?: Record<string, string>;
-  cols?: number;
-  rows?: number;
+type DataListener = (chunk: string, seq: number) => void;
+type ExitListener = (exit: TerminalExit) => void;
+
+/**
+ * The mode that restores the mirror's mouse encoding ('' for the default).
+ * The serialize addon restores mouse tracking but not its encoding, and
+ * neither xterm exposes the encoding publicly: without it a fresh client
+ * reports wheels in the old X10 bytes, which an SGR TUI (Claude Code)
+ * ignores — touch scrolling was dead after every reload or reconnect.
+ */
+function mouseEncodingMode(mirror: HeadlessTerminal): string {
+  const core = (mirror as unknown as { _core?: { coreMouseService?: { activeEncoding?: string } } })
+    ._core;
+  const encoding = core?.coreMouseService?.activeEncoding;
+  return (encoding && TERMINAL_MOUSE_ENCODING_MODES[encoding]) ?? '';
 }
-
-export interface PtyExit {
-  exitCode: number;
-  signal?: number;
-}
-
-type DataListener = (chunk: string) => void;
-type ExitListener = (exit: PtyExit) => void;
 
 /** A single live (or just-exited) PTY-backed terminal. */
-export class PtySession {
+export class PtySession implements TerminalSession {
   readonly agentId: number;
   private readonly pty: IPty;
   /** Headless xterm mirroring the PTY's screen state. A raw byte ring can't be
@@ -59,7 +65,9 @@ export class PtySession {
   private readonly dataListeners = new Set<DataListener>();
   private readonly exitListeners = new Set<ExitListener>();
   private killTimer: ReturnType<typeof setTimeout> | null = null;
-  private exit: PtyExit | null = null;
+  private exit: TerminalExit | null = null;
+  /** Number of the last output chunk (see TerminalReplay). */
+  private seq = 0;
 
   cols: number;
   rows: number;
@@ -83,8 +91,9 @@ export class PtySession {
     );
 
     this.pty.onData((chunk) => {
+      const seq = ++this.seq;
       this.mirror.write(chunk);
-      for (const listener of this.dataListeners) listener(chunk);
+      for (const listener of this.dataListeners) listener(chunk, seq);
     });
 
     this.pty.onExit((e) => {
@@ -104,7 +113,7 @@ export class PtySession {
   }
 
   /** Exit status, or null while the process is still running. */
-  get exitStatus(): PtyExit | null {
+  get exitStatus(): TerminalExit | null {
     return this.exit;
   }
 
@@ -115,15 +124,17 @@ export class PtySession {
   /**
    * Serialized screen state (scrollback + screen + cursor + attributes) for
    * replay to a late-joining or reconnecting client, valid on a FRESH terminal
-   * of the same geometry. Async because the mirror parses writes on its own
-   * queue: the empty flush write's callback fires only after every chunk
-   * received before this call has been parsed, so none are missing from the
-   * snapshot (and any chunk arriving after it is exactly the live stream).
+   * of the same geometry, numbered: it holds every chunk up to `seq` (the
+   * chunks received before this call), and none after. Async because the
+   * mirror parses writes on its own queue: the empty flush write's callback
+   * fires only after every chunk received before this call has been parsed.
    */
-  snapshot(): Promise<string> {
+  replay(): Promise<TerminalReplay> {
+    const seq = this.seq;
     return new Promise((resolve) => {
       this.mirror.write('', () => {
-        resolve(this.serializeAddon.serialize());
+        const data = this.serializeAddon.serialize() + mouseEncodingMode(this.mirror);
+        resolve({ data, seq, cols: this.cols, rows: this.rows });
       });
     });
   }
@@ -193,7 +204,7 @@ function isValidDimension(value: number): boolean {
   return Number.isInteger(value) && value > 0 && value <= 1000;
 }
 
-export class PtySessionManager {
+export class PtySessionManager implements TerminalSessions {
   private readonly sessions = new Map<number, PtySession>();
   private resolution: ReturnType<typeof resolvePtyModule> | null = null;
   /** True for a manager built by disabled(): the operator opted out, as opposed
@@ -254,7 +265,7 @@ export class PtySessionManager {
    * must check isAvailable() first (the UI gates on the broadcast availability,
    * so reaching here unavailable is a programming error, not a user path).
    */
-  create(options: CreatePtySessionOptions): PtySession {
+  create(options: CreateTerminalOptions): PtySession {
     const { module } = this.ensureResolved();
     if (!module) {
       throw new Error(this.unavailableReason() ?? 'PTY module unavailable');
@@ -300,6 +311,15 @@ export class PtySessionManager {
     session.dispose();
   }
 
+  /** Nothing outlives an in-process manager's server. */
+  survivors(): TerminalSession[] {
+    return [];
+  }
+
+  shutdown(): Promise<void> {
+    return this.disposeAll();
+  }
+
   /**
    * Kill every terminal. Called on server shutdown, which must await it: the
    * SIGKILL escalation is a timer, and a process that exits first never runs it
@@ -328,23 +348,15 @@ export class PtySessionManager {
 
 function spawnPty(
   module: PtyModule,
-  options: CreatePtySessionOptions,
+  options: CreateTerminalOptions,
   cols: number,
   rows: number,
 ): IPty {
-  // Drop undefined values: process.env is `string | undefined`-valued, but the
-  // PTY env must be all-strings.
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) env[key] = value;
-  }
-  Object.assign(env, options.env ?? {}, { TERM: TERMINAL_TERM_NAME });
-
   return module.spawn(options.command, options.args, {
     name: TERMINAL_TERM_NAME,
     cols,
     rows,
     cwd: options.cwd,
-    env,
+    env: { ...options.env, TERM: TERMINAL_TERM_NAME },
   });
 }
