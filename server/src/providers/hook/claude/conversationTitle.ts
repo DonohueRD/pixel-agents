@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 
+import { isRecord } from '../../../../../core/src/isRecord.js';
 import { CONVERSATION_TITLE_MAX_CHARS, CONVERSATION_TITLE_SCAN_BYTES } from '../../../constants.js';
 
 /**
@@ -10,7 +11,13 @@ import { CONVERSATION_TITLE_MAX_CHARS, CONVERSATION_TITLE_SCAN_BYTES } from '../
  * (the one it generates) and `last-prompt` (the fallback for a session too
  * short to have been titled). Only the file's tail is read, then its head
  * (an early title of a session whose tail is one long tool result): a
- * transcript can run to many megabytes.
+ * transcript can run to many megabytes. So a /rename written mid-file, with
+ * more than CONVERSATION_TITLE_SCAN_BYTES of records after it and before it,
+ * is not seen: an older title shows instead.
+ *
+ * The two windows overlap for a file under twice the scan size; a record found
+ * in both gives the same answer under the precedence below. A record cut by a
+ * window's edge fails to parse and is skipped.
  */
 export function conversationTitle(transcriptPath: string): string | undefined {
   let fd: number;
@@ -21,11 +28,12 @@ export function conversationTitle(transcriptPath: string): string | undefined {
   }
   try {
     const size = fs.fstatSync(fd).size;
-    const tail = readChunk(fd, Math.max(0, size - CONVERSATION_TITLE_SCAN_BYTES), size);
-    const head =
-      size > CONVERSATION_TITLE_SCAN_BYTES ? readChunk(fd, 0, CONVERSATION_TITLE_SCAN_BYTES) : '';
-    const late = titlesIn(tail);
-    const early = titlesIn(head);
+    const late = titlesIn(readChunk(fd, Math.max(0, size - CONVERSATION_TITLE_SCAN_BYTES), size));
+    // The tail's rename is the newest one and wins over anything in the head.
+    const early =
+      late.custom === undefined && size > CONVERSATION_TITLE_SCAN_BYTES
+        ? titlesIn(readChunk(fd, 0, CONVERSATION_TITLE_SCAN_BYTES))
+        : {};
     const title = late.custom ?? early.custom ?? late.ai ?? early.ai ?? late.prompt ?? early.prompt;
     return title ? clip(title) : undefined;
   } catch {
@@ -47,12 +55,14 @@ function titlesIn(chunk: string): Titles {
   const found: Titles = {};
   for (const line of chunk.split('\n')) {
     if (!line.includes('title"') && !line.includes('"last-prompt"')) continue;
-    let record: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      record = JSON.parse(line) as Record<string, unknown>;
+      parsed = JSON.parse(line);
     } catch {
       continue;
     }
+    if (!isRecord(parsed)) continue;
+    const record = parsed;
     const text = (key: string) =>
       typeof record[key] === 'string' && (record[key] as string).trim()
         ? (record[key] as string)
