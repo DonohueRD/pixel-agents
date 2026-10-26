@@ -6,7 +6,10 @@
 
 import type { CharacterDirectionSprites } from '../../../core/src/assets/types.js';
 import { parseCharacterProfiles } from '../../../core/src/characterProfiles.js';
-import type { CharacterProfilesLoaded, RecentCharactersLoaded } from '../../../core/src/messages.js';
+import type {
+  CharacterProfilesLoaded,
+  RecentCharactersLoaded,
+} from '../../../core/src/messages.js';
 import { parseWardrobeItems } from '../../../core/src/wardrobeItems.js';
 import { castStore } from './castStore.js';
 import { setExternalCharacterSprites } from './officeSprites.js';
