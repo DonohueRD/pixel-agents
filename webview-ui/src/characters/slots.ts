@@ -20,8 +20,8 @@ export type SlotKey = CharacterSlot;
 const isSlot = (key: string): key is SlotKey =>
   (CHARACTER_SLOTS as readonly string[]).includes(key);
 
-/** A colour a profile can set (`profile.colors[key]`). */
-export type ColorKey = 'skin' | 'eyes' | 'lashes' | Exclude<SlotKey, 'body'>;
+/** A colour a profile can set (`profile.colors[key]`); `tie` = an outfit's tie (the outfit's own colour until set). */
+export type ColorKey = 'skin' | 'eyes' | 'lashes' | 'tie' | Exclude<SlotKey, 'body'>;
 
 export interface ColorPicker {
   key: ColorKey;
@@ -35,7 +35,7 @@ export type TabKey =
 export interface TabDef {
   key: TabKey;
   label: string;
-  /** Its own colour panels, shown while a part is worn. */
+  /** Its own colour panels, shown while a part is worn that has art for them (the tie: only outfits with one). */
   pickers: ColorPicker[];
   /** The piece the pixel editor opens on from this tab. */
   piece: string | null;
@@ -84,7 +84,15 @@ export const TABS: readonly TabDef[] = [
     under: 'under',
   },
   { key: 'shoes', label: 'Shoes', pickers: [{ key: 'shoes', label: 'Colour' }], piece: 'shoes' },
-  { key: 'full', label: 'Outfit', pickers: [{ key: 'full', label: 'Colour' }], piece: 'full' },
+  {
+    key: 'full',
+    label: 'Outfit',
+    pickers: [
+      { key: 'full', label: 'Colour' },
+      { key: 'tie', label: 'Tie' },
+    ],
+    piece: 'full',
+  },
   { key: 'hat', label: 'Hat', pickers: [{ key: 'hat', label: 'Colour' }], piece: 'hat' },
   { key: 'acc', label: 'Accessories', pickers: [], piece: null },
 ];
@@ -177,6 +185,7 @@ export const LAYERS: readonly LayerDef[] = [
   { kind: 'part', pix: 'pants', sel: 'pants', color: 'pants', label: 'Pants', chip: 10 },
   { kind: 'part', pix: 'top', sel: 'top', color: 'top', label: 'Top', chip: 8 },
   { kind: 'part', pix: 'full', sel: 'full', color: 'full', label: 'Outfit', chip: 12 },
+  { kind: 'part', pix: 'tie', sel: 'full', color: 'tie', label: 'Tie', chip: 21 }, // the outfit's tie (tie/<outfit>.png), when it has one
   { kind: 'part', pix: 'jacket', sel: 'jacket', color: 'jacket', label: 'Jacket', chip: 9 }, // over the top or the outfit
   { kind: 'part', pix: 'lanyard', sel: 'lanyard', color: 'lanyard', label: 'Lanyard', chip: 15 },
   {

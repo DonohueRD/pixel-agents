@@ -82,12 +82,14 @@ export class CharacterRenderer {
   // ── Colour ─────────────────────────────────────────────────
 
   /**
-   * The colour a key is worn in: its own; for a beard nobody has coloured, the hair's; for
-   * gray clothes and hair nobody has coloured, their default (white clothes, brown hair).
+   * The colour a key is worn in: its own; for a tie nobody has coloured, the outfit's; for a
+   * beard nobody has coloured, the hair's; for gray clothes and hair nobody has coloured,
+   * their default (white clothes, brown hair).
    */
   colorOf(p: RenderProfile, key: ColorKey): CharacterColor | null {
     const own = p.colors?.[key];
     if (own) return own;
+    if (key === 'tie') return this.colorOf(p, 'full');
     if (key !== 'beard') return this.defaultColor(p, key);
     if (!p.beard || !p.hair) return null;
     const hex = this.hairHex(p);

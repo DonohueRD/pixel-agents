@@ -268,9 +268,9 @@ export function ColorPanel({ picker }: { picker: ColorPicker }) {
   const value = profile.colors?.[key] ?? fallback ?? undefined;
   const art = colorArt(profile, key);
   const palette = renderer.paletteFor(art);
-  // an untouched beard wears the hair's colour, so no square is "as drawn" for it
-  const followsHair = key === 'beard' && !!profile.hair;
-  const asDrawnPressed = (value ? isAsDrawn(value) : false) || (!value && !followsHair);
+  // an untouched beard wears the hair's colour and a tie the outfit's, so no square is "as drawn" for them
+  const follows = (key === 'beard' && !!profile.hair) || (key === 'tie' && !!profile.colors?.full);
+  const asDrawnPressed = (value ? isAsDrawn(value) : false) || (!value && !follows);
   const choose = (cv: CharacterColor) => edit((p) => setColor(p, key, cv));
 
   // `value` is computed on click: fitting a swatch to the part scans its pixels

@@ -116,6 +116,28 @@ describe('CharacterRenderer', () => {
       if (before[i] !== after[i] || before[i + 3] !== after[i + 3]) changed++;
     expect(changed).toBe(1);
   });
+
+  it("an outfit's tie wears the outfit's colour until given its own, which changes only the tie", () => {
+    const suit: CharacterProfile = {
+      ...DEFAULT_CHARACTER_PROFILES[0],
+      full: 'suit_and_tie',
+      colors: { full: { h: 130, s: 0, b: -38, c: -56, colorize: true } },
+    };
+    const sameColour = { ...suit, colors: { ...suit.colors, tie: suit.colors!.full } };
+    expect(renderer.buildSheet(sameColour)).toEqual(renderer.buildSheet(suit));
+
+    const yellow = { ...suit, colors: { ...suit.colors, tie: { h: 45, s: 80, b: 0, c: 0 } } };
+    const before = renderer.buildSheet(suit);
+    const after = renderer.buildSheet(yellow);
+    const tieOnly = renderer.buildSheet({ ...yellow }, { only: 'tie' });
+    let changed = 0;
+    for (let i = 0; i < before.length; i += 4) {
+      if (before[i] === after[i] && before[i + 1] === after[i + 1]) continue;
+      changed++;
+      expect(tieOnly[i + 3]).toBeGreaterThan(0);
+    }
+    expect(changed).toBeGreaterThan(0);
+  });
 });
 
 describe('wardrobe art', () => {

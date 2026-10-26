@@ -10,6 +10,7 @@ import { offeredParts } from '../items.js';
 import { setPart, setUnderwear, tabSummary } from '../profiles.js';
 import {
   ACCESSORIES,
+  colorArt,
   EYE_SHAPES,
   eyeShape,
   layerOf,
@@ -154,7 +155,7 @@ function Accessories() {
 }
 
 function SlotPanel() {
-  const { profile, tab, phone } = useStudio();
+  const { profile, tab, phone, renderer } = useStudio();
   const def = TABS.find((t) => t.key === tab)!;
   const under = underOf(tab);
   let options: React.ReactNode = null;
@@ -171,8 +172,11 @@ function SlotPanel() {
   } else {
     options = <SlotOptions slot={tab} />;
     if (profile[tab]) {
-      for (const picker of def.pickers)
-        panels.push(<ColorPanel key={picker.key} picker={picker} />);
+      for (const picker of def.pickers) {
+        const art = colorArt(profile, picker.key);
+        if (art && renderer.wardrobe.art.has(art.path))
+          panels.push(<ColorPanel key={picker.key} picker={picker} />);
+      }
     } else if (under && profile[under]) {
       panels.push(<ColorPanel key={under} picker={{ key: under, label: 'Underwear colour' }} />);
     }

@@ -9,6 +9,7 @@
  *                                which pupil pixels take the eye colour, drawn over the pupils) and
  *                                lashes, the same for every body; a shape has only the files it draws.
  *                                closed-stern/ is the blink over Stern: what differs from closed/
+ *   tie/<outfit id>.png          an outfit's tie, coloured apart from it (only outfits with one)
  *   props/reading-glasses.png, props/paper.png
  * art/wardrobe.json holds the rest: each part's label and colourways, and the category palettes.
  * Adding a part = its PNG plus its line in wardrobe.json; the two must match or loading fails.
@@ -75,6 +76,8 @@ const BODY_SHEETS: readonly Underwear[] = ['under', 'utop'];
 /** An eye folder's pieces: the iris comes in one sheet per eye-row variant (which eye pixel takes the eye colour). */
 const EYE_PIECES = ['whites', ...EYE_ROWS.map((rows) => `iris.${rows}`), 'lashes'];
 export const PROPS = { glasses: 'props/reading-glasses', paper: 'props/paper' } as const;
+/** Pieces a part of a category may come with, each its own sheet (<piece>/<part id>.png): an outfit's tie. */
+const PART_EXTRAS: Record<string, readonly string[]> = { full: ['tie'] };
 
 /** A part's art path. */
 export const partArt = (piece: string, id: string): string => `${piece}/${id}`;
@@ -84,13 +87,16 @@ export const eyeArt = (folder: string, piece: string, rows?: EyeRows): string =>
 
 /**
  * Every art path the wardrobe needs (required) or may have (optional: eye files, since a
- * shape has only the ones it draws). `eyeFolders` are the folders under eyes/.
+ * shape has only the ones it draws, and a part's extra pieces). `eyeFolders` are the folders under eyes/.
  */
 function expectedArt(manifest: WardrobeManifest, eyeFolders: readonly string[]) {
   const required = new Set<string>(Object.values(PROPS));
   const optional = new Set<string>();
   for (const [cat, parts] of Object.entries(manifest.parts)) {
-    for (const { id } of parts) required.add(partArt(cat, id));
+    for (const { id } of parts) {
+      required.add(partArt(cat, id));
+      for (const piece of PART_EXTRAS[cat] ?? []) optional.add(partArt(piece, id));
+    }
   }
   for (const { id: body } of manifest.parts[BODY] ?? []) {
     for (const piece of BODY_SHEETS) required.add(partArt(piece, body));
