@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { isRecord } from '../../core/src/isRecord.js';
 import { newLocalId } from '../../core/src/localId.js';
-import { isItemPiece,ITEM_PIECES } from '../../core/src/wardrobeItems.js';
+import { isItemPiece, ITEM_PIECES } from '../../core/src/wardrobeItems.js';
 
 describe('isRecord', () => {
   it('accepts objects only', () => {
