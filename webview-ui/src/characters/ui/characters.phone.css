@@ -267,8 +267,9 @@
 .chv-mode-tile .chv-dock {
   display: none;
 }
+/* room below the editor for the floating Save, so its last buttons scroll out from under it */
 .chv-phone.chv-mode-tile {
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 .chv-phone .chv-editor {
   padding: 0;
@@ -364,4 +365,8 @@
   right: 12px;
   bottom: calc(var(--dock-h, 92px) + 12px + env(safe-area-inset-bottom, 0px));
   z-index: 4;
+}
+/* the tile editor hides the dock: Save drops to the corner (the page leaves room for it) */
+.chv-phone.chv-mode-tile .chv-save {
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }

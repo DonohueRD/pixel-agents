@@ -667,7 +667,7 @@ export const CHARACTER_EDITOR_COLORS = {
   checkerDark: '#232334',
   grid: 'rgba(255, 255, 255, 0.07)',
   hover: '#ffffff',
-  /** Marks a frame or pixel that has edits (= --color-warning). */
+  /** Marks a frame that has edits on the sheet (= --color-warning). */
   edited: '#ff8d14',
   /** Outlines the frame being edited on the sheet (= --color-accent-bright). */
   frame: '#746fff',

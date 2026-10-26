@@ -18,7 +18,7 @@ import { rgbHex } from '../color.js';
 import { pieceName } from '../items.js';
 import { clearFrameEdits, clearPieceEdits, hasEdits, paintPixel } from '../profiles.js';
 import { cellAt, FRAME_COUNT, isOpaque } from '../sheet.js';
-import { editsOf, layerOf, wornPieces } from '../slots.js';
+import { layerOf, wornPieces } from '../slots.js';
 import { ArmedButton } from './ArmedButton.js';
 import { ItemTools } from './ItemTools.js';
 import {
@@ -175,7 +175,7 @@ export function PixelEditor() {
     [renderer, profile, ed.pix, ed.front, layered],
   );
 
-  // checkerboard, the frame, the grid and this piece's edited pixels
+  // checkerboard, the frame and the grid
   const n = devicePixels(scale, dpr);
   useLayoutEffect(() => {
     const c = canvas.current;
@@ -226,18 +226,6 @@ export function PixelEditor() {
       ctx.moveTo(0, y * devicePx + 0.5);
       ctx.lineTo(FRAME_W * devicePx, y * devicePx + 0.5);
       ctx.stroke();
-    }
-    // this piece's edited pixels in this frame
-    const cell = editsOf(profile, ed.pix)?.cells[ed.frame];
-    ctx.fillStyle = CHARACTER_EDITOR_COLORS.edited;
-    const mark = Math.max(2, devicePx / 6);
-    for (const i of Object.keys(cell ?? {})) {
-      ctx.fillRect(
-        (+i % FRAME_W) * devicePx + 1,
-        Math.floor(+i / FRAME_W) * devicePx + 1,
-        mark,
-        mark,
-      );
     }
   }, [renderer, profile, layers, ed.pix, ed.frame, ed.fade, row, scale, dpr]);
 
