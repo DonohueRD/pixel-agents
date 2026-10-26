@@ -134,9 +134,9 @@ export function applyReportedContext(agents: AgentStateStore, report: ReportedCo
 }
 
 /**
- * The session was cleared (/clear): its context is empty, a real 0 the office
- * shows as a full gauge. The window stays — the same model runs on — and the
- * fresh transcript is a new file, so its own records decide the next reading.
+ * The session is new — cleared (/clear) or just launched: its context is
+ * empty, a real 0 the office shows as a full gauge. The window stays (the same
+ * model runs on), and the transcript's own records decide the next reading.
  */
 export function clearContextUsage(agentId: number, agents: AgentStateStore): void {
   const agent = agents.get(agentId);
