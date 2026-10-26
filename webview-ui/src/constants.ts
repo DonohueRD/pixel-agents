@@ -795,16 +795,24 @@ export const USAGE_BARS_LEFT_PX = 8 + 40 + 8;
 /** The provider whose plan the usage bars show (the one with a usage bridge today). */
 export const USAGE_PROVIDER_ID = 'claude';
 
-// ── Loading screen (a few default characters at work while the office loads) ──
+// ── Loading screen (a lamp-lit corner of the office while it loads) ──
 /** The loading screen's zoom, as the office counts it: DEVICE pixels per
- *  sprite pixel (the office at 5x). Everything below is in sprite pixels. */
+ *  sprite pixel (the office at 5x on the phone, 3x on desktop). */
 export const LOADING_ZOOM = 5;
-/** How far the pacing character walks before turning back. */
-export const LOADING_WALK_SPAN = 36;
-/** How far it moves per walk frame. */
-export const LOADING_WALK_STEP = 2;
-/** The gap between the two desks. */
-export const LOADING_DESK_GAP = 12;
+export const LOADING_ZOOM_DESKTOP = 3;
+/** The loading screen's background: the dark room the scene's floor fades into. */
+export const LOADING_SCREEN_BG = '#000000';
+/** The scene's floor: the office's wood planks in the default layout's colour (colorize). */
+export const LOADING_FLOOR_COLOR = { h: 25, s: 48, b: -43, c: -88 } as const;
+/** How far the floor's vignette darkens it into the background, at its edge (0-1). */
+export const LOADING_VIGNETTE_DARKEST = 0.6;
+/** Gradient stops along the floor's fade and vignette (both eased). */
+export const LOADING_FADE_STOPS = 8;
+/** Black at `alpha`: the floor's fade and vignette masks (only alpha matters). */
+export const loadingShade = (alpha: number): string => `rgba(0, 0, 0, ${alpha})`;
+/** "Loading the office": a dot more every step, up to three, then none again. */
+export const LOADING_DOTS_MS = 400;
+export const LOADING_MAX_DOTS = 3;
 
 // ── Office radio (procedural 8-bit background music, music/) ──
 /** How far ahead of the audio clock notes are scheduled. */

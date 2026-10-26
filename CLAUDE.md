@@ -108,7 +108,9 @@ webview-ui/                          React 19 + Canvas UI (depends only on core/
     components/                      React UI (toolbars, modals, settings)
       BottomToolbar.tsx, ZoomControls.tsx, SettingsModal.tsx, InfoModal.tsx,
       Tooltip.tsx, DebugView.tsx, ui/Button.tsx, ...
-      LoadingScene.tsx               The loading screen: default characters typing, reading and pacing at CSS desks, drawn from the bundled wardrobe (no server needed)
+      LoadingScene.tsx               The loading screen: a lamp-lit corner of the office in a black room — Suit and Dress typing at a table of PCs, Aura circling it, the cat on it, a wood floor fading out (vignette + radial fade); one canvas, bundled art only (no server needed). Dev preview: /loading.html (`npm run dev`)
+      loadingSceneLayout.ts          The scene (pure): tile layout, z order by the office's rules, the walker's loop, frames by time
+      loadingSceneArt.ts             The furniture, floor and cat PNGs inlined (?inline) and decoded to sprites
       ui/pixelIcons.ts               The 8×8 pixel icon set (grids as strings; the canvas draws them too: the selected furniture's rotate/delete buttons)
       ui/pixelGrid.ts                gridRuns / litBox: a '#' grid as horizontal runs and its lit box, for the SVGs and the canvas alike (DOM-free)
       ui/PixelSvg.tsx                The one pixel-art SVG (runs as rects, crispEdges) behind PixelIcon and PixelText
@@ -684,6 +686,8 @@ cd webview-ui && npm run dev        # Vite dev server (separate terminal)
 ```
 
 The webview Vite dev server is **not** included in `npm run watch` — it has to be run separately.
+
+`/loading.html` on the Vite dev server shows the loading screen alone (`loading.html` + `src/loadingPreview.tsx`, dev only, not part of the build), for editing it with hot reload.
 
 **Updating a running office without ending its agents (development only)**: `pixel-agents --pty-host` keeps the agents' terminals in a separate long-lived process (`dist/pty-host.js`, socket `~/.pixel-agents/pty-host/host.sock`, override with `--pty-host-socket`), so a server restart leaves them running and the next server reattaches them (same id, look, screen). The shipped default keeps them in process and ends them with the server. Details: `docs/design/standalone-terminal.md` → "PTY host".
 
