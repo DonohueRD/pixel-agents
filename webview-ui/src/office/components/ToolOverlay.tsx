@@ -21,13 +21,16 @@ import {
   OVERLAY_LABEL_Z_INDEX,
   TEAM_LEAD_COLOR,
   TEAM_ROLE_COLOR,
+  TILE_SIZE,
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import { useStudioItems } from '../../hooks/useStudioInbox.js';
 import type { OfficeState } from '../engine/officeState.js';
 import { overlayProjection } from '../projection.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
 import { BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js';
+import type { OfficeLayout } from '../types.js';
 import type { ToolActivity } from '../types.js';
 import { CharacterState } from '../types.js';
 
@@ -110,6 +113,10 @@ function OverlayBubble({ cached, dpr }: { cached: HTMLCanvasElement; dpr: number
   );
 }
 
+/** A Head's department is the Area label of the tile its seat sits on. */
+const deptLabelAt = (layout: OfficeLayout, col: number, row: number): string | null =>
+  layout.areaTiles?.[row * layout.cols + col] ?? null;
+
 export function ToolOverlay({
   officeState,
   agents,
@@ -122,6 +129,7 @@ export function ToolOverlay({
   onCloseAgent,
   alwaysShowOverlay,
 }: ToolOverlayProps) {
+  const studioItems = useStudioItems();
   const [, setTick] = useState(0);
   useEffect(() => {
     let rafId = 0;
@@ -160,6 +168,29 @@ export function ToolOverlay({
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
         const isSub = ch.isSubagent;
+
+        // Department badge: inbox items waiting for this Head's department.
+        // Subagents share their parent's seat, so they never get one.
+        const dept = isSub ? null : deptLabelAt(officeState.getLayout(), ch.tileCol, ch.tileRow);
+        const deptCount = dept
+          ? studioItems.filter((item) => item.dept?.toLowerCase() === dept.toLowerCase()).length
+          : 0;
+        let deptBadgeNode = null;
+        if (deptCount > 0) {
+          deptBadgeNode = (
+            <div
+              className="absolute -translate-x-1/2 pointer-events-none studio-dept-badge"
+              style={{
+                left: project.toScreenX(ch.x),
+                top: project.toScreenY(ch.y - TILE_SIZE * 3),
+                zIndex: OVERLAY_BUBBLE_Z_INDEX,
+              }}
+              title={`${deptCount} waiting in ${dept}`}
+            >
+              {deptCount}
+            </div>
+          );
+        }
 
         // Speech bubble (permission dots / done checkmark) — rendered here in
         // the DOM, above the label panels (OVERLAY_BUBBLE_Z_INDEX over the label panels), for every
@@ -286,6 +317,7 @@ export function ToolOverlay({
         return (
           <Fragment key={id}>
             {bubbleNode}
+            {deptBadgeNode}
             <div
               className="absolute flex flex-col items-center -translate-x-1/2"
               style={{

@@ -15,31 +15,31 @@
 
 :root {
   /* Core palette */
-  --color-bg: #1e1e2e;
-  --color-bg-dark: #181828;
-  --color-bg-thumb: #2a2a3a;
-  --color-border: #4a4a6a;
-  --color-accent: #6030ff;
-  --color-accent-bright: #746fff;
+  --color-bg: #121315;
+  --color-bg-dark: #0c0d0e;
+  --color-bg-thumb: #25282c;
+  --color-border: #34383d;
+  --color-accent: #ff6a13;
+  --color-accent-bright: #ffa05c;
 
   /* Text */
-  --color-text: rgba(255, 255, 255, 0.9);
-  --color-text-muted: rgba(255, 255, 255, 0.5);
+  --color-text: #e8e6e1;
+  --color-text-muted: #8d9097;
 
   /* Buttons */
-  --color-btn-bg: rgb(53, 52, 69);
-  --color-btn-hover: rgb(78, 75, 104);
-  --color-active-bg: rgb(44, 43, 109);
+  --color-btn-bg: #1c1e21;
+  --color-btn-hover: #25282c;
+  --color-active-bg: #4a2410;
 
   /* Semantic */
   --color-reset-text: #ecc;
-  --color-danger: #d14249;
-  --color-warning: #ff8d14;
+  --color-danger: #ff4d4d;
+  --color-warning: #ffd23f;
 
   /* Status */
-  --color-status-permission: #cca700;
-  --color-status-active: #3794ff;
-  --color-status-success: #89d185;
+  --color-status-permission: #ffd23f;
+  --color-status-active: #ffa05c;
+  --color-status-success: #5fd068;
   --color-status-error: var(--color-danger);
 
   /* Shadow */
@@ -115,6 +115,19 @@
 }
 
 @layer components {
+  /* Red count badge over a Head: items waiting for that Head's department */
+  .studio-dept-badge {
+    background: var(--color-danger);
+    color: #fff;
+    border: 2px solid #000;
+    min-width: 1.5rem;
+    padding: 0 4px;
+    text-align: center;
+    line-height: 1.4;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+  }
+
   /* Cork board note: paper stock with a darker edge (studio inbox) */
   .cork-note {
     background: #d9b98a;
