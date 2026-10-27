@@ -18,6 +18,7 @@ import {
   WS_CLOSE_FORBIDDEN_ORIGIN,
   WS_CLOSE_UNAUTHORIZED,
 } from './constants.js';
+import { registerStudioRoutes } from './studioRoutes.js';
 import type { PtySessionManager } from './terminal/ptySessionManager.js';
 import { registerTerminalRoutes } from './terminal/terminalRoutes.js';
 import type { AgentState } from './types.js';
@@ -109,6 +110,14 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
   registerHealthRoute(app);
   registerHookRoute(app, options);
   registerWebSocketRoute(app, options, allowedHostnames);
+  if (!options.embedded) {
+    registerStudioRoutes(app, {
+      token: options.token,
+      store: options.store,
+      runtime: options.runtime,
+      ptyManager: options.ptyManager,
+    });
+  }
   registerTerminalRoutes(app, {
     token: options.token,
     allowedHostnames,

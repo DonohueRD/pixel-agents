@@ -41,6 +41,8 @@ export interface LaunchStandaloneAgentOptions {
   /** Read from the host's persisted permission posture by the caller; never a
    *  per-launch choice made in the office. */
   bypassPermissions?: boolean;
+  /** First message sent to the session (studio API: CEO/Head kickoff). */
+  prompt?: string;
   cols?: number;
   rows?: number;
 }
@@ -65,6 +67,7 @@ export function launchStandaloneAgent(
 
   const launch = provider.buildLaunchCommand?.(sessionId, cwd, {
     bypassPermissions: options.bypassPermissions,
+    prompt: options.prompt,
   });
   if (!launch) {
     console.error('[Pixel Agents] Terminal: provider.buildLaunchCommand is not implemented');

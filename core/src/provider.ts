@@ -133,7 +133,7 @@ export interface HookProvider {
   buildLaunchCommand?(
     sessionId: string,
     cwd: string,
-    opts?: { bypassPermissions?: boolean },
+    opts?: { bypassPermissions?: boolean; prompt?: string },
   ): {
     command: string;
     args: string[];

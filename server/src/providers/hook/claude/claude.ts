@@ -102,10 +102,12 @@ function getSessionDirs(workspacePath: string): string[] {
 function buildLaunchCommand(
   sessionId: string,
   cwd: string,
-  opts?: { bypassPermissions?: boolean },
+  opts?: { bypassPermissions?: boolean; prompt?: string },
 ): { command: string; args: string[]; env?: Record<string, string> } {
   const args = ['--session-id', sessionId];
   if (opts?.bypassPermissions) args.push('--dangerously-skip-permissions');
+  // Positional prompt = the session's first user message (keep it short).
+  if (opts?.prompt) args.push(opts.prompt);
   return { command: 'claude', args, env: { PWD: cwd } };
 }
 
