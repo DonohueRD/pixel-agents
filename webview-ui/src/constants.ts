@@ -560,3 +560,12 @@ export const VISUAL_VIEWPORT_FULL_EPSILON_PX = 1;
  *  (with an editable focused) = the software keyboard is up. Well above an
  *  address bar collapsing (~56 px), well below any on-screen keyboard. */
 export const KEYBOARD_MIN_HEIGHT_PX = 150;
+
+/** Cork board pin colour per studio inbox event type. */
+export const CORK_PIN_COLORS: Record<string, string> = {
+  meeting_requested: '#e0584b',
+  decision_chosen: '#e6b84a',
+  ticket_created: '#4f9be0',
+  chat_message: '#5cb86a',
+};
+export const CORK_PIN_FALLBACK_COLOR = '#b8a68a';

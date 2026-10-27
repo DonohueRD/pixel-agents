@@ -20,6 +20,10 @@ interface BottomToolbarProps {
   terminalAvailable: boolean;
   /** Why the terminal is off (shown on the disabled button's tooltip). */
   terminalUnavailableReason: string | null;
+  /** Items waiting on the cork board; shown as a badge on the Board button. */
+  boardCount: number;
+  isBoardOpen: boolean;
+  onToggleBoard: () => void;
 }
 
 export function BottomToolbar({
@@ -32,6 +36,9 @@ export function BottomToolbar({
   onEditDirectory,
   terminalAvailable,
   terminalUnavailableReason,
+  boardCount,
+  isBoardOpen,
+  onToggleBoard,
 }: BottomToolbarProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const launchRef = useRef<HTMLDivElement>(null);
@@ -117,6 +124,18 @@ export function BottomToolbar({
         title="Edit office layout"
       >
         Layout
+      </Button>
+      <Button
+        variant={isBoardOpen ? 'active' : 'default'}
+        onClick={onToggleBoard}
+        title="Cork board: items waiting for you"
+      >
+        Board
+        {boardCount > 0 && (
+          <span className="ml-2 inline-block min-w-[1.25rem] px-1 bg-red-600 text-white text-center">
+            {boardCount}
+          </span>
+        )}
       </Button>
       <Button
         variant={isSettingsOpen ? 'active' : 'default'}

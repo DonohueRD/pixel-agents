@@ -115,6 +115,12 @@
 }
 
 @layer components {
+  /* Cork board note: paper stock with a darker edge (studio inbox) */
+  .cork-note {
+    background: #d9b98a;
+    border: 2px solid #8a6a3e;
+  }
+
   /* Panel with standard pixel-art border + shadow */
   .pixel-panel {
     @apply bg-bg border-2 border-border rounded-none shadow-pixel;

@@ -114,6 +114,7 @@ components:
         - $ref: '#/components/schemas/SettingsLoaded'
         - $ref: '#/components/schemas/BypassPermissionsUpdated'
         - $ref: '#/components/schemas/HooksStatus'
+        - $ref: '#/components/schemas/StudioInboxUpdated'
         - $ref: '#/components/schemas/HooksConsentRequest'
         - $ref: '#/components/schemas/ExternalAssetDirectoriesUpdated'
         - $ref: '#/components/schemas/AreaMappingsLoaded'
@@ -712,6 +713,39 @@ components:
           const: bypassPermissionsUpdated
         enabled:
           type: boolean
+
+    StudioInboxUpdated:
+      description: |
+        Pending items from the studio inbox (the rinkside-ops dashboard), polled
+        by the host. Each message replaces the whole list; it is not a delta.
+        Empty `items` means nothing is waiting.
+      type: object
+      additionalProperties: false
+      required: [type, items]
+      properties:
+        type:
+          const: studioInboxUpdated
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, type, title, t]
+            properties:
+              id:
+                type: integer
+              type:
+                type: string
+                description: Inbox event type, e.g. "meeting_requested" or "ticket_created".
+              title:
+                type: string
+              who:
+                type: string
+              dept:
+                type: string
+              t:
+                type: string
+                description: ISO timestamp from the dashboard.
 
     HooksStatus:
       description: |

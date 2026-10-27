@@ -36,6 +36,7 @@ export type ServerMessage =
   | SettingsLoaded
   | BypassPermissionsUpdated
   | HooksStatus
+  | StudioInboxUpdated
   | HooksConsentRequest
   | ExternalAssetDirectoriesUpdated
   | AreaMappingsLoaded
@@ -306,6 +307,20 @@ export interface HooksStatus {
   type: 'hooksStatus';
   providerId: string;
   installed: boolean;
+}
+
+export interface StudioInboxUpdated {
+  type: 'studioInboxUpdated';
+  items: AnonymousSchema_182[];
+}
+
+export interface AnonymousSchema_182 {
+  id: number;
+  type: string;
+  title: string;
+  who?: string;
+  dept?: string;
+  t: string;
 }
 
 export interface HooksConsentRequest {

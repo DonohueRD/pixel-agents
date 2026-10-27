@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { toMajorMinor } from './changelogData.js';
 import { AgentCardBar } from './components/AgentCardBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
+import { CorkBoard } from './components/CorkBoard.js';
+import { useStudioInbox } from './hooks/useStudioInbox.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
 import { DebugView } from './components/DebugView.js';
@@ -130,6 +132,8 @@ function App() {
 
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isBoardOpen, setIsBoardOpen] = useState(false);
+  const studioItems = useStudioInbox();
   const [isHooksInfoOpen, setIsHooksInfoOpen] = useState(false);
   const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
@@ -641,6 +645,9 @@ function App() {
           onEditDirectory={directoryEditor.edit}
           terminalAvailable={terminalAvailable}
           terminalUnavailableReason={terminalUnavailableReason}
+          boardCount={studioItems.length}
+          isBoardOpen={isBoardOpen}
+          onToggleBoard={() => setIsBoardOpen((v) => !v)}
         />
       )}
 
@@ -815,6 +822,8 @@ function App() {
         onClose={() => setIsChangelogOpen(false)}
         currentVersion={extensionVersion}
       />
+
+      <CorkBoard isOpen={isBoardOpen} onClose={() => setIsBoardOpen(false)} items={studioItems} />
 
       <SettingsModal
         isOpen={isSettingsOpen}

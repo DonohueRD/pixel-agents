@@ -81,6 +81,7 @@ import {
   LAYOUT_REVISION_KEY,
 } from './constants.js';
 import { workspaceDirectories } from './hostDirectories.js';
+import { startStudioInboxPoller } from './studioInbox.js';
 import { VscodeTerminalAdapter } from './vscodeTerminalAdapter.js';
 
 /** Cap on the pending-broadcast queue. If we exceed this, something has gone
@@ -98,6 +99,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // runners hook events that arrive during iframe init (mock-claude scenarios
   // start writing within ~3 s of agent spawn) silently never reach the UI.
   private isWebviewReady = false;
+  private stopStudioInbox: (() => void) | null = null;
   private pendingBroadcasts: Array<Record<string, unknown>> = [];
 
   // Shared agent lifecycle core (timer Maps, scanners, hook handler, dismissal tracker)
@@ -129,6 +131,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   ) {
     this.adapter = adapter;
     this.store.setAdapter(this.adapter);
+    this.stopStudioInbox = startStudioInboxPoller((items) =>
+      this.sendOrBuffer({ type: 'studioInboxUpdated', items }),
+    );
     // Workspace folders are this host's Directory contribution, so a folder
     // added to or removed from the workspace changes the union the drawer
     // shows. Registered once here (not per resolveWebviewView) and buffered
@@ -1130,6 +1135,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
   dispose() {
     this.pixelAgentsServer?.stop();
+    this.stopStudioInbox?.();
+    this.stopStudioInbox = null;
     this.pixelAgentsServer = null;
     this.runtime.dispose();
     this.layoutWatcher?.dispose();
