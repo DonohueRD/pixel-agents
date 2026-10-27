@@ -25,7 +25,7 @@ import type { ConsentEffects } from './providers/hook/consentExecutor.js';
 import { applyConsentChoice } from './providers/hook/consentExecutor.js';
 import { hooksConsentRequest } from './providers/hook/consentGate.js';
 import { claudeProvider, hookProviderById, hookProviders } from './providers/index.js';
-import { getLastInboxSnapshot } from './studioInbox.js';
+import { decideApproval, getLastInboxSnapshot } from './studioInbox.js';
 import type { PtySessionManager } from './terminal/ptySessionManager.js';
 import { launchStandaloneAgent } from './terminal/standaloneAgentLauncher.js';
 
@@ -154,6 +154,18 @@ export function handleClientMessage(
           directoryPath: msg.directoryPath as string | undefined,
           bypassPermissions: adapter?.getSetting(KEY_BYPASS_PERMISSIONS, false) ?? false,
         },
+      );
+      break;
+    }
+
+    case 'decideApproval': {
+      const { id, decision, reason } = msg as {
+        id: string;
+        decision: 'approved' | 'rejected' | 'changes';
+        reason?: string;
+      };
+      decideApproval(id, decision, reason).catch((err) =>
+        console.warn(`[Pixel Agents] approval ${id} not recorded:`, err),
       );
       break;
     }
@@ -457,7 +469,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
 
   // 0b. Cork board: current inbox, if the host polls one.
   const inbox = getLastInboxSnapshot();
-  if (inbox) send({ type: 'studioInboxUpdated', items: inbox });
+  if (inbox) send({ type: 'studioInboxUpdated', ...inbox });
 
   // 1. Provider capabilities (must arrive before any agent messages)
   send({

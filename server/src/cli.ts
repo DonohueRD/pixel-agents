@@ -419,8 +419,8 @@ async function main(): Promise<void> {
     );
 
     // Cork-board feed from the rinkside-ops dashboard (peek only, never drains it).
-    const stopInbox = startStudioInboxPoller((items) =>
-      store.broadcast({ type: 'studioInboxUpdated', items }),
+    const stopInbox = startStudioInboxPoller((snapshot) =>
+      store.broadcast({ type: 'studioInboxUpdated', ...snapshot }),
     );
 
     // ── Graceful shutdown ──

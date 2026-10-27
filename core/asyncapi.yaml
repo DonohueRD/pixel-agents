@@ -134,6 +134,7 @@ components:
       oneOf:
         - $ref: '#/components/schemas/WebviewReady'
         - $ref: '#/components/schemas/LaunchAgent'
+        - $ref: '#/components/schemas/DecideApproval'
         - $ref: '#/components/schemas/FocusAgent'
         - $ref: '#/components/schemas/CloseAgent'
         - $ref: '#/components/schemas/SaveAgentSeats'
@@ -746,6 +747,28 @@ components:
               t:
                 type: string
                 description: ISO timestamp from the dashboard.
+        approvals:
+          type: array
+          description: Chairman approvals still pending on the dashboard.
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, title]
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              dept:
+                type: string
+              who:
+                type: string
+              evidence:
+                type: array
+                items:
+                  type: string
+              rollback:
+                type: string
 
     HooksStatus:
       description: |
@@ -1011,6 +1034,23 @@ components:
       properties:
         type:
           const: webviewReady
+
+    DecideApproval:
+      description: Approve, reject or request changes on a pending studio approval.
+      type: object
+      additionalProperties: false
+      required: [type, id, decision]
+      properties:
+        type:
+          const: decideApproval
+        id:
+          type: string
+        decision:
+          type: string
+          enum: [approved, rejected, changes]
+        reason:
+          type: string
+          description: Required by the dashboard for rejected and changes.
 
     LaunchAgent:
       description: Launch a new Claude agent in a new terminal.

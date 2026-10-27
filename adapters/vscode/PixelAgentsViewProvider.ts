@@ -58,6 +58,7 @@ import {
   hookProviders,
 } from '../../server/src/providers/index.js';
 import { PixelAgentsServer } from '../../server/src/server.js';
+import { decideApproval, startStudioInboxPoller } from '../../server/src/studioInbox.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -81,7 +82,6 @@ import {
   LAYOUT_REVISION_KEY,
 } from './constants.js';
 import { workspaceDirectories } from './hostDirectories.js';
-import { startStudioInboxPoller } from '../../server/src/studioInbox.js';
 import { VscodeTerminalAdapter } from './vscodeTerminalAdapter.js';
 
 /** Cap on the pending-broadcast queue. If we exceed this, something has gone
@@ -131,8 +131,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   ) {
     this.adapter = adapter;
     this.store.setAdapter(this.adapter);
-    this.stopStudioInbox = startStudioInboxPoller((items) =>
-      this.sendOrBuffer({ type: 'studioInboxUpdated', items }),
+    this.stopStudioInbox = startStudioInboxPoller((snapshot) =>
+      this.sendOrBuffer({ type: 'studioInboxUpdated', ...snapshot }),
     );
     // Workspace folders are this host's Directory contribution, so a folder
     // added to or removed from the workspace changes the union the drawer
@@ -465,6 +465,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
+      if (message.type === 'decideApproval') {
+        decideApproval(message.id, message.decision, message.reason).catch((err) =>
+          console.warn(`[Pixel Agents] approval ${message.id} not recorded:`, err),
+        );
+        return;
+      }
       if (message.type === 'launchAgent') {
         const prevAgentIds = new Set(this.store.keys());
         await launchNewTerminal(

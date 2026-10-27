@@ -52,6 +52,7 @@ export type ServerMessage =
 export type ClientMessage =
   | WebviewReady
   | LaunchAgent
+  | DecideApproval
   | FocusAgent
   | CloseAgent
   | SaveAgentSeats
@@ -312,6 +313,7 @@ export interface HooksStatus {
 export interface StudioInboxUpdated {
   type: 'studioInboxUpdated';
   items: AnonymousSchema_182[];
+  approvals?: AnonymousSchema_190[];
 }
 
 export interface AnonymousSchema_182 {
@@ -321,6 +323,15 @@ export interface AnonymousSchema_182 {
   who?: string;
   dept?: string;
   t: string;
+}
+
+export interface AnonymousSchema_190 {
+  id: string;
+  title: string;
+  dept?: string;
+  who?: string;
+  evidence?: string[];
+  rollback?: string;
 }
 
 export interface HooksConsentRequest {
@@ -399,6 +410,15 @@ export interface LaunchAgent {
   type: 'launchAgent';
   directoryPath?: string;
 }
+
+export interface DecideApproval {
+  type: 'decideApproval';
+  id: string;
+  decision: AnonymousSchema_236;
+  reason?: string;
+}
+
+export type AnonymousSchema_236 = 'approved' | 'rejected' | 'changes';
 
 export interface FocusAgent {
   type: 'focusAgent';

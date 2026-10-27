@@ -27,7 +27,7 @@ import { useExtensionMessages } from './hooks/useExtensionMessages.js';
 import { useIntroTour } from './hooks/useIntroTour.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
-import { useStudioInboxFeed, useStudioItems } from './hooks/useStudioInbox.js';
+import { useStudioApprovals, useStudioInboxFeed, useStudioItems } from './hooks/useStudioInbox.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
 import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
@@ -135,6 +135,7 @@ function App() {
   const [isBoardOpen, setIsBoardOpen] = useState(false);
   useStudioInboxFeed();
   const studioItems = useStudioItems();
+  const studioApprovals = useStudioApprovals();
   const [isHooksInfoOpen, setIsHooksInfoOpen] = useState(false);
   const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
@@ -646,7 +647,7 @@ function App() {
           onEditDirectory={directoryEditor.edit}
           terminalAvailable={terminalAvailable}
           terminalUnavailableReason={terminalUnavailableReason}
-          boardCount={studioItems.length}
+          boardCount={studioItems.length + studioApprovals.length}
           isBoardOpen={isBoardOpen}
           onToggleBoard={() => setIsBoardOpen((v) => !v)}
         />
