@@ -81,7 +81,7 @@ import {
   LAYOUT_REVISION_KEY,
 } from './constants.js';
 import { workspaceDirectories } from './hostDirectories.js';
-import { startStudioInboxPoller } from './studioInbox.js';
+import { startStudioInboxPoller } from '../../server/src/studioInbox.js';
 import { VscodeTerminalAdapter } from './vscodeTerminalAdapter.js';
 
 /** Cap on the pending-broadcast queue. If we exceed this, something has gone

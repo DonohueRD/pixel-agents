@@ -1,7 +1,7 @@
 /**
  * Polls the studio inbox (the rinkside-ops dashboard) and hands each snapshot
- * to the office. Runs in the extension host, not the webview: the dashboard
- * sends no CORS headers, so a webview origin cannot read it.
+ * to the office. Runs in the host (extension host or standalone server), not the
+ * webview: the dashboard sends no CORS headers, so a webview origin cannot read it.
  */
 
 export interface StudioInboxItem {
@@ -17,6 +17,11 @@ export interface StudioInboxItem {
 const DEFAULT_INBOX_URL = 'http://hueyserver:8099';
 const POLL_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 5_000;
+
+let lastSnapshot: StudioInboxItem[] | null = null;
+
+/** Most recent poll result, so a newly connected client needn't wait for the next tick. */
+export const getLastInboxSnapshot = (): StudioInboxItem[] | null => lastSnapshot;
 
 type RawEvent = Record<string, unknown>;
 
@@ -61,6 +66,7 @@ export function startStudioInboxPoller(onSnapshot: (items: StudioInboxItem[]) =>
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as { events?: RawEvent[] };
       const items = (body.events ?? []).map(toItem).filter((i): i is StudioInboxItem => i !== null);
+      lastSnapshot = items;
       onSnapshot(items);
       warned = false;
     } catch (err) {

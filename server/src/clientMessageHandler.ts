@@ -25,6 +25,7 @@ import type { ConsentEffects } from './providers/hook/consentExecutor.js';
 import { applyConsentChoice } from './providers/hook/consentExecutor.js';
 import { hooksConsentRequest } from './providers/hook/consentGate.js';
 import { claudeProvider, hookProviderById, hookProviders } from './providers/index.js';
+import { getLastInboxSnapshot } from './studioInbox.js';
 import type { PtySessionManager } from './terminal/ptySessionManager.js';
 import { launchStandaloneAgent } from './terminal/standaloneAgentLauncher.js';
 
@@ -453,6 +454,10 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // a change (all refused by refuseReadOnly), so it must know before it draws
   // them.
   send({ type: 'officeAccess', readOnly: ctx.privileged !== true });
+
+  // 0b. Cork board: current inbox, if the host polls one.
+  const inbox = getLastInboxSnapshot();
+  if (inbox) send({ type: 'studioInboxUpdated', items: inbox });
 
   // 1. Provider capabilities (must arrive before any agent messages)
   send({

@@ -34,6 +34,7 @@ import {
 import { FileStateAdapter } from './fileStateAdapter.js';
 import { claudeProvider, copyHookScript, hookProviderById } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
+import { startStudioInboxPoller } from './studioInbox.js';
 import { PtySessionManager } from './terminal/ptySessionManager.js';
 import { isLoopbackHost, normalizeHostname } from './wsAuth.js';
 
@@ -417,6 +418,11 @@ async function main(): Promise<void> {
       `\n  Pixel Agents server running at http://${displayHost}:${config.port}/?token=${config.token}\n`,
     );
 
+    // Cork-board feed from the rinkside-ops dashboard (peek only, never drains it).
+    const stopInbox = startStudioInboxPoller((items) =>
+      store.broadcast({ type: 'studioInboxUpdated', items }),
+    );
+
     // ── Graceful shutdown ──
     let shuttingDown = false;
     async function shutdown(): Promise<void> {
@@ -426,6 +432,7 @@ async function main(): Promise<void> {
       // Kill child terminals before the runtime tears their agents down, and
       // wait for them: exiting now would cancel the SIGKILL escalation and
       // leave a child that ignores SIGHUP orphaned on a dead server.
+      stopInbox();
       await ptyManager.disposeAll();
       runtime.dispose();
       server.stop();
